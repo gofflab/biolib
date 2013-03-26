@@ -12,7 +12,7 @@ import sequencelib
 def broadConnect():
     host="mysql.broadinstitute.org"
     user="lgoff"
-    password="nextgen"
+    password=""
     db="lgoff_nextgen"
     broadDb=MySQLdb.connect(host=host,user=user,db=db,passwd=password)
     return broadDb.cursor(MySQLdb.cursors.DictCursor)
@@ -36,7 +36,7 @@ def gbdbConnect(gbdbname = "hg18"):
 def valorGbdbConnect(gbdbname='hg19'):
     gbHost = 'localhost'
     gbUser = 'root'
-    gbPass = 'rinnlab1'
+    gbPass = ''
     gbdb = MySQLdb.connect(host=gbHost,user=gbUser,passwd=gbPass,db=gbdbname)
     return gbdb.cursor(MySQLdb.cursors.DictCursor)
 
