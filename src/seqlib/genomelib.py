@@ -162,7 +162,7 @@ class UCSCStrandDescr(object):
 class UCSCSeqIntervalRow(sqlgraph.TupleO):
     orientation = UCSCStrandDescr()
 
-serverInfo = sqlgraph.DBServerInfo(host='localhost',user='root',passwd='rinnlab1')
+serverInfo = sqlgraph.DBServerInfo(host='localhost',user='root',passwd='')
 
 def build_rmsk_nlmsa(genome="hg19"):
     #This is horse shit...

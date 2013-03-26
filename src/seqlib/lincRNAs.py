@@ -16,7 +16,7 @@ def main(bedFile,lincLotID):
     
     host="mysql.broadinstitute.org"
     user="lgoff"
-    password="nextgen"
+    password=""
     db="lgoff_nextgen"
     
     tmpFname = 'transcripts.tab'
@@ -75,7 +75,7 @@ def insertRecord(lincRNA,lincLotID):
 def getDb():
     host="mysql.broadinstitute.org"
     user="lgoff"
-    password="nextgen"
+    password=""
     db="lgoff_nextgen"
     broadDb=MySQLdb.connect(host=host,user=user,db=db,passwd=password)
     return broadDb
