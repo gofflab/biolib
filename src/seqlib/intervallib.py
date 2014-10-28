@@ -4,7 +4,7 @@ Created on Jun 25, 2009
 
 @author: lgoff
 '''
-import genomelib
+# import genomelib
 import copy
 import numpy as np
 import algorithms

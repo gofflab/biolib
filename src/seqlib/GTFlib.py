@@ -12,7 +12,7 @@ absolutely dependent on a unique geneId and unique transcriptId for any records.
 import intervallib
 import sys
 from misc import uniqify,pp
-import genomelib
+#import genomelib
 
 #######################
 #Error Handling
@@ -283,15 +283,15 @@ class GTFGeneContainer(object):
     def toInterval(self):
         return intervallib.Interval(self.contig,self.start-1,self.end,self.strand,name=self.geneId)
     
-    def fetchSequence(self,genome='hg19',connection=None):
-        if connection == None:
-            connection = genomelib.pygrConnect(genome)
-        try:    
-            seq = connection[self.contig][self.start-1:self.end]
-        except KeyError:
-            seq = ''
-        self.sequence=str(seq)
-        return
+    # def fetchSequence(self,genome='hg19',connection=None):
+    #     if connection == None:
+    #         connection = genomelib.pygrConnect(genome)
+    #     try:    
+    #         seq = connection[self.contig][self.start-1:self.end]
+    #     except KeyError:
+    #         seq = ''
+    #     self.sequence=str(seq)
+    #     return
         
 
 #############
