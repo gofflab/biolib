@@ -6,10 +6,15 @@ Created on Jun 25, 2009
 '''
 # import genomelib
 import copy
-import numpy as np
-from . import algorithms
-import os,sys,random,string
+import os
+import random
+import string
 import subprocess
+import sys
+
+import numpy as np
+
+from . import algorithms
 
 #Common
 RNAFOLD = 'RNAfold -noPS'
@@ -551,7 +556,7 @@ def intervals2wig(iter,sampleName="",outDir=os.getcwd(),scratchDir=os.getcwd()):
             sys.stdout.write(".")
         if count % 100000 == 0:
             print("\n%d" % (count))
-        if not interval.chr in seqs:
+        if interval.chr not in seqs:
             seqs[interval.chr]={'+':scratchDir+"/"+GenRandom(),'-':scratchDir+"/"+GenRandom()}
         FILE = open(seqs[interval.chr][interval.strand],'a')
         for i in range(interval.start,len(interval)+1):

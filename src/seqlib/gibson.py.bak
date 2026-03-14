@@ -64,12 +64,12 @@ def gibson(fname,gateway=True,fragSize=500,overhangSize=20):
 
 def printGibson(fragDict,outHandle):
     for k in fragDict.keys():
-        print("%s:" % k, file=outHandle)
+        print >>outHandle, "%s:" % k
         blockCount = 0
         for fragment in fragDict[k]:
             blockCount += 1
-            print("%s_block%d\t%s" % (k,blockCount,fragment), file=outHandle)
-        print("\n", file=outHandle)
+            print >>outHandle,"%s_block%d\t%s" % (k,blockCount,fragment)
+        print >>outHandle, "\n"
 
 
 
@@ -89,7 +89,7 @@ def main(argv=None):
     try:
         try:
             opts, args = getopt.getopt(argv[1:], "hto:vs:gf:k", ["help", "output="])
-        except getopt.error as msg:
+        except getopt.error, msg:
             raise Usage(msg)
         # option processing
         for option, value in opts:
@@ -123,9 +123,9 @@ def main(argv=None):
         #pp(fragDict)
         printGibson(fragDict,outHandle)
 
-    except Usage as err:
-        print(sys.argv[0].split("/")[-1] + ": " + str(err.msg), file=sys.stderr)
-        print("\t for help use --help", file=sys.stderr)
+    except Usage, err:
+        print >> sys.stderr, sys.argv[0].split("/")[-1] + ": " + str(err.msg)
+        print >> sys.stderr, "\t for help use --help"
         sys.exit()
 
 if __name__ == "__main__":

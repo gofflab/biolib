@@ -10,7 +10,9 @@ BWA Align:
 BWA SAMSE:
      bwa samse /seq/compbio-hp/lgoff/genomes/hg18/hg18.fa test.sai test.fastq
 '''
-import os,copy
+import copy
+import os
+
 from .Alignment import *
 
 prefix = "/seq/compbio-hp/lgoff/genomes/hg18/hg18.fa"

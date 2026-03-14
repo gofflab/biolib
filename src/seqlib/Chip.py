@@ -4,13 +4,19 @@ This module will attempt to deal with the nimblegen array data in a similar mech
 
 @author: lgoff
 '''
-import copy, random
-import numpy as np
-from .intervallib import *
+import copy
+import glob
+import random
+
 # from misc import pp  # rasmus library removed - not Python 3.12 compatible
-import sys, glob
-from . import continuousData
+import sys
+
+import numpy as np
 import rpy2.robjects as robjects
+
+from . import continuousData
+from .intervallib import *
+
 
 class ChipInterval(Interval):
     """Extends basic Interval class with Tiling array methods and attributes"""
@@ -135,7 +141,7 @@ class ChipData(object):
         #Populate self.probeData
         ChipIter = parseNimblegen(fname)
         for ci in ChipIter:
-            if not ci.chr in list(self.probeData.keys()):
+            if ci.chr not in list(self.probeData.keys()):
                 self.probeData[ci.chr] = []
             self.probeData[ci.chr].append(ci)
 

@@ -3,7 +3,10 @@ Created on Nov 26, 2010
 
 @author: lgoff
 '''
-import sys, math, random
+import math
+import random
+import sys
+
 
 #Classes
 class Point:

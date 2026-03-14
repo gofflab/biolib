@@ -3,10 +3,11 @@ Created on Jun 29, 2011
 
 @author: lgoff
 '''
-import os, re
+import os
+import re
 import subprocess
-import time
 import sys
+import time
 
 # from misc import pp  # rasmus library removed - not Python 3.12 compatible
 

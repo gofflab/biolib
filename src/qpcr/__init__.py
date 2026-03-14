@@ -10,9 +10,6 @@ Modules:
 
 __version__ = "0.2.0"
 
-from . import abi
-from . import MinerMethod
-from . import qpcrAnalysis
-from . import util
+from . import MinerMethod, abi, qpcrAnalysis, util
 
 __all__ = ["abi", "MinerMethod", "qpcrAnalysis", "util"]

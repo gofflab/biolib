@@ -3,15 +3,17 @@ Created on Oct 25, 2009
 Misc tools to get information from a SAM/BAM file...
 @author: lgoff
 '''
-from .Alignment import Alignment
-from . import intervallib
-import os
-import pysam
 import array
-import numpy
 import collections
+import os
+
+import numpy
+import pysam
 import rpy2.robjects as robjects
-import rpy2.robjects.numpy2ri
+
+from . import intervallib
+from .Alignment import Alignment
+
 # from inOut.wiggle import WiggleFileWriter  # NOTE: inOut.wiggle module not available; WiggleFileWriter commented out
 
 class SAMAlignment(Alignment):
@@ -181,9 +183,9 @@ def makeContiguousIntervalsByStrand(samHandle,offset=0):
         current = next(samFetch)
         currentInterval = sam2Interval(current)
 
-        for next in samFetch:
-            if samReadsIntersect(current,next,offset=offset):
-                currentInterval.end = max(currentInterval.end,next.pos+len(next.seq)+1)
+        for nxt in samFetch:
+            if samReadsIntersect(current, nxt, offset=offset):
+                currentInterval.end = max(currentInterval.end, nxt.pos + len(nxt.seq) + 1)
                 currentInterval.readcount += 1
             else:
                 yield currentInterval

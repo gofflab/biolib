@@ -1,7 +1,12 @@
 #!/usr/bin/env python
-import math,operator,random,sys
+import math
+import operator
+import random
+import sys
 from functools import reduce
+
 import numpy as np
+
 
 #######
 #Probability Tools for DNA sequence analysis

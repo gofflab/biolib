@@ -120,9 +120,9 @@ def runPrimer3(fastaFile,task="qpcr",p3CloneSetFile="/seq/compbio-hp/lgoff/lincR
     for i in iter:
         myString = "SEQUENCE_ID=%s\nSEQUENCE_TEMPLATE=%s\n" % (i['name'],i['sequence'])
         if task == "cloning":
-            myString += "SEQUENCE_INCLUDED_REGION=1,%d\n" % len(i['sequence'])
+            myString += "SEQUENCE_INCLUDED_REGION=1,%d\n" % (i['name'],i['sequence'],len(i['sequence']))
         myString += "="
-        print(myString, file=tmpHandle)
+        print >>tmpHandle, myString
     tmpHandle.close()
 
     P3Command = "primer3_core -p3_settings_file=%s -output=%s.p3out %s"

@@ -19,8 +19,11 @@ bowtie -C -t -S -n 2 -k 1 -p 4 --best /seq/compbio-hp/lgoff/genomes/hg18/bowtie/
 ############
 #Imports
 ############
+import os
+import sys
+
 from . import solid
-import sys,os
+
 ############
 #Constants
 ############

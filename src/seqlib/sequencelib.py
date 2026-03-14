@@ -1,6 +1,11 @@
 #/usr/bin/env python
-import string, operator, random, math
+import math
+import operator
+import random
+import string
+
 from . import prob
+
 
 ######
 #Parsers
@@ -18,7 +23,7 @@ def FastaIterator(handle):
         if line == "" : return #Premature end of file, or just empty?
         if line [0] == ">":
             break
-    
+
     while True:
         if line[0] !=">":
             raise ValueError("Records in Fasta files should start with a '>' character")
@@ -33,12 +38,12 @@ def FastaIterator(handle):
         #Return record then continue
         newSeq = {'name':name,'sequence':"".join(lines)}
         yield newSeq
-        
+
         if not line : return #StopIteration
     assert False, "Should not reach this line"
-    
+
 bed_fields = ['chr','start','end','label','score','strand']
-            
+
 ###
 #Generic Sequence tools
 ###
@@ -79,9 +84,9 @@ def mcount(s, chars):
     return count
 
 def prob_seq(seq, pGC=.5):
-    # given a GC content, what is the probability  
+    # given a GC content, what is the probability
     # of getting the particular sequence
-        
+
     assert(0<=pGC<=1)
     # the probability of obtaining sequence seq
     # given a background gc probability of .5
@@ -93,7 +98,7 @@ def prob_seq(seq, pGC=.5):
     return reduce(operator.mul, ps, 1)
 
 def transcribe(seq):
-    RNA = seq.replace('T', 'U')  
+    RNA = seq.replace('T', 'U')
     return RNA
 
 def GenRandomSeq(length, type='DNA'):
@@ -105,7 +110,7 @@ def GenRandomSeq(length, type='DNA'):
 
 def seed():
     random.seed()
-    
+
 def draw(distribution):
     sum=0
     r = random.random()
@@ -162,7 +167,7 @@ def kmer_dictionary_counts(seq,k,dic={}):
 
 def kmer_dictionary(seq,k,dic={},offset=0):
     """Returns dictionary of k,v = kmer:'list of kmer start positions in seq' """
-    for i in range(0,len(seq)-k):    
+    for i in range(0,len(seq)-k):
         subseq = seq[i:][:k]
         dic.setdefault(subseq,[]).append(i+1)
     return dic

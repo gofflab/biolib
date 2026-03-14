@@ -3,8 +3,9 @@ Created on Jun 30, 2009
 
 @author: lgoff
 '''
-from .intervallib import *
 from . import misc
+from .intervallib import *
+
 
 class Alignment(object):
     """

@@ -1,5 +1,7 @@
 #!/usr/bin/python
-import sys,string
+import sys
+
+
 #############
 #pygr tools
 #############
@@ -348,7 +350,8 @@ def hamming_distance(s1, s2):
 #Ranking and Ordering
 #
 ######################################
-from random import uniform, sample
+from random import sample  # noqa: E402
+
 
 def order(x, NoneIsLast = True, decreasing = False):
     """
@@ -374,7 +377,7 @@ def order(x, NoneIsLast = True, decreasing = False):
             elem = x[i]
             # Valid values are True or False only.
             if decreasing == NoneIsLast:
-                return not(elem is None), elem
+                return elem is not None, elem
             else:
                 return elem is None, elem
         ix = range(n)

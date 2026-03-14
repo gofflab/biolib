@@ -9,9 +9,11 @@ absolutely dependent on a unique geneId and unique transcriptId for any records.
 ###########
 #Imports
 ###########
-from . import intervallib
 import sys
-from .misc import uniqify,pp
+
+from . import intervallib
+from .misc import uniqify
+
 #import genomelib
 
 #######################
@@ -262,7 +264,7 @@ class GTFGeneContainer(object):
     def propogateLincName(self,lincName):
         for feat in self.features:
             feat.attributes['linc_name'] = lincName
-            if not 'gene_name' in feat.attributes:
+            if 'gene_name' not in feat.attributes:
                 feat.attributes['gene_name'] = lincName
 
     def addAttribute(self,key,value):

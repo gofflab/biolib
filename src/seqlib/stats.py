@@ -1,19 +1,18 @@
 # python libs
-from math import *
 import cmath
-import random
 import os
-import numpy as np
+import random
 from collections import Counter, defaultdict
+from math import *
+
+import numpy as np
+import pandas as pd
 
 # rasmus libs replaced with local imports and inlined utilities
 # from rasmus import util       # removed: rasmus not Python 3 compatible
 # from rasmus import algorithms # removed: use local algorithms module
 # from rasmus import tablelib   # removed: replaced with pandas DataFrame
 from . import algorithms
-import pandas as pd
-
-
 
 
 def prod(lst):

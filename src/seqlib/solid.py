@@ -1,7 +1,10 @@
 #!/usr/bin/python
-import sys,os
+import os
+import sys
+
 #import math
 from . import misc
+
 #from random import choice
 #import string
 
@@ -37,19 +40,19 @@ class CSSeq:
         self.qual = []
         self.space = "CS"
         self.trimmed = False
-        #self.count = 0 
-    
+        #self.count = 0
+
     def __len__(self):
         return len(self.sequence)
-    
+
     def __str__(self):
         return self.sequence
     def __repr__(self):
         return self.name
-    
+
 #    def __repr__(self):
 #        return "***Object of class 'CSSeq'***\nName:     %s\nSequence: %s\nSpace:    %s\nTrimmed:  %s" % (self.name,self.sequence,self.space,self.trimmed)
-    
+
     #Added per request by Ron to add IVGN samples to database from .csfasta
     #def SQLOutput(self):
     #    """Returns string of BeadName<tab>CSsequence<tab>DNAsequence for insert into database"""
@@ -57,29 +60,29 @@ class CSSeq:
     #    self.CSToDNA()
     #    DNAseq = self.sequence
     #    return ('%s\t%s\t%s\t' % (self.name,CSseq,self.sequence))
-        
+
     def returnFasta(self):
         return ('>%s\n%s' % (self.name,self.sequence))
-    
+
     def returnSHRiMPcsfasta(self):
         return ('>%s_x%d\n%s') % (self.name,self.readcount,self.sequence)
-    
+
     def returnQual(self):
         return('>%s\n%s' % (self.name," ".join(q for q in self.qual)))
-    
+
     def printFasta(self):
         print ('>%s\n%s' % (self.name,self.sequence))
-    
+
     def CSToDNA(self):
         """
         This function will convert the colorspace 'self.sequence' to DNA space
         """
         if self.space!="CS":
             raise TypeError('Not a colorspace sequence')
-        
+
         res = ''
         letter = ''
-        
+
         for i in self.sequence:
             if (letter == ''):
                 letter = res = i
@@ -99,9 +102,9 @@ class CSSeq:
             if self.space=="DNA": linkseq = P2_seq
             elif self.space == "CS": linkseq = P2_CS_seq[1:]
             linker = linker_oligos(linkseq)
-    
+
         linker_len = len(linkseq)
-    
+
         ##from max. possible overlap, check and take best
         max_ol = min([len(read), linker_len])
         for n in range(max_ol, 0, -1):
@@ -111,7 +114,7 @@ class CSSeq:
                 self.trimmed=True
                 break
         return #self.sequence
-    
+
     def trim_by_qual(self,phredCutoff=10):
         """iterative trimming of 3' end by quality cutoff (default = 10)"""
         bases = 0
@@ -122,7 +125,7 @@ class CSSeq:
             self.sequence = self.sequence[:-bases]
             self.qual = self.qual[:-bases]
         return
-    
+
     def nuIDName(self):
         if self.space == "CS":
             tempString = CS2DNA(self.sequence)
@@ -133,7 +136,7 @@ class CSSeq:
         return
 ########################################################################
 #Basic Iterators for SOLiD Data
-########################################################################        
+########################################################################
 def CSFastaIterator(handle, matches=False):
     """
     Generator function to iterate over csfasta records in <handle>:
@@ -157,7 +160,7 @@ def CSFastaIterator(handle, matches=False):
         name = parsedList[0]
         matchList = parsedList[1:]
             #count = len(matchList)
-        
+
         lines = []
         line = handle.readline()
         while True:
@@ -165,16 +168,16 @@ def CSFastaIterator(handle, matches=False):
             if line[0] == ">" : break
             lines.append(line.rstrip().replace(" ",""))
             line = handle.readline()
-        
+
         #print matchList
         #Return record then continue
         newSeq = CSSeq(name,"".join(lines))
         if matches:
             newSeq.matches = matchList
         #if count != 0:
-            #newSeq.count = count 
+            #newSeq.count = count
         yield newSeq
-        
+
         if not line : return #StopIteration
     assert False, "Should not reach this line"
 
@@ -196,14 +199,14 @@ def QualIterator(handle):
         while True:
             if not line : break
             if line[0] == ">" : break
-            try: 
+            try:
                 qual['scores']=map(int,line.rstrip().split())
             except ValueError:
                 assert ValueError(" ".join([str(x) for x in qual['scores']]))
             line = handle.readline()
-        
+
         yield qual
-        
+
         if not line : return #StopIteration
     assert False, "Should not reach this line"
 
@@ -218,7 +221,7 @@ def CompIter(csfile,qualfile):
     qualiter=QualIterator(qualhandle)
 
     for i in csiter:
-        q=qualiter.next()   
+        q=qualiter.next()
         if q['name']==i.name:
             i.qual=q['scores']
             yield i
@@ -256,7 +259,7 @@ def makeFastq(csfile,qualfile,shortname,outdir="",split=-1,trim=False):
     """
     iter = CompIter(csfile,qualfile)
     group = 1
-    
+
     #Test to see if output directory is accessible and if not, it creates it. (This could be more streamlined)
     if outdir != "" and os.access(outdir, os.F_OK) is False:
         os.mkdir(outdir)
@@ -333,7 +336,7 @@ def uniqueTable(dir=os.getcwd()):
                 dict[key][sample] = 0
         row = "%s\t" % key + "\t".join("%d" % dict[key][sample] for sample in samples)
         print(row)
-        
+
 def filterUnique(uniqueFile,minObs=5):
     """
     At this point, this function is specific to the H1U and H1NSC samples
@@ -368,7 +371,7 @@ def filterUnique(uniqueFile,minObs=5):
             NSCfile.write(">%s_x%d\n%s\n" % (readSeq,NSC,readSeq))
     Ufile.close()
     NSCfile.close()
-    
+
 def CS2DNA(sequence):
     """
     Takes a colorspace sequence and converts it to DNA space
@@ -378,10 +381,10 @@ def CS2DNA(sequence):
     mapping["1"] = {"T":"G","A":"C","C":"A","G":"T"}
     mapping["2"] = {"T":"C","A":"G","C":"T","G":"A"}
     mapping["3"] = {"T":"A","A":"T","C":"G","G":"C"}
-    
+
     res = ''
     letter = ''
-    
+
     for i in sequence:
         if (letter == ''):
             letter = res = i

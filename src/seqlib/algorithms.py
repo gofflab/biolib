@@ -1,7 +1,4 @@
 # python libs
-import math
-import random
-import sys
 
 
 
@@ -188,7 +185,7 @@ def binsearch(lst, val, compare=None, order=1):
        runs in O(log n)
     """
     if compare is None:
-        compare = lambda a, b: (a > b) - (a < b)
+        def compare(a, b): return (a > b) - (a < b)
 
     assert order == 1 or order == -1
 

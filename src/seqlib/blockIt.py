@@ -7,6 +7,7 @@ Invitrogen (Block-It Kit)
 @author: lgoff
 '''
 import sys
+
 from . import sequencelib as sequence
 
 fwdAdapter = 'TGCTG'

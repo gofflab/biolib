@@ -3,13 +3,15 @@ Created on Jun 30, 2009
 First attempt at a data structure for high-resolution genome-wide data
 @author: lgoff
 '''
-from . import genomelib
-import gzip,time,sys
-import copy
+import gzip
+import sys
+
 import numpy as np
-from tables import *
 import rpy2.robjects as rpy
-from . import Chip
+from tables import *
+
+from . import Chip, genomelib
+
 
 class ContinuousData(object):
     '''

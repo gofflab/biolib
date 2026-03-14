@@ -6,12 +6,13 @@ JensenShannon.py
 Created by Loyal Goff on Nov 10, 2010.
 Copyright (c) 2010
 """
-from scipy import *
-from numpy import *
-import time
-from scipy.stats.distributions import entropy
+
 import rpy2.robjects as r
-import rpy2.robjects.numpy2ri
+from numpy import *
+from scipy import *
+from scipy.stats.distributions import entropy
+
+
 #efficnent js_div
 def js_div_matrix(a):
     a=array(a)

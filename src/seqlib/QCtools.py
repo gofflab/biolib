@@ -4,9 +4,8 @@ Created on May 6, 2010
 
 @author: lgoff
 '''
-import numpy as np
-import re
 
+import numpy as np
 
 
 def makePWM(fastqFile,readLen,freq=True):

@@ -1,14 +1,14 @@
 #!/usr/bin/env python
+import getopt
 import math
 import sys
-from . import prob, misc
+
 import numpy
-from . import mySam
 import pysam
-from . import intervallib
 import scipy.stats
-from .misc import rstrips
-import getopt
+
+from . import intervallib, misc, mySam, prob
+
 #from rpy2 import robjects
 #from seqtools.genome import chr_lengths,genome_length
 

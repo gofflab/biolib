@@ -2,7 +2,6 @@ import copy
 import math
 import random
 
-
 # from rasmus import util  # NOTE: rasmus is not available; util functions inlined below
 
 

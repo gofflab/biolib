@@ -10,8 +10,7 @@ Do not import this module in production code.
 
 # NOTE: pygr is not available in Python 3. Imports are guarded below.
 try:
-    from pygr import annotation, mapping
-    from pygr import worldbase
+    from pygr import annotation, mapping, worldbase
     _PYGR_AVAILABLE = True
 except ImportError:
     _PYGR_AVAILABLE = False

@@ -79,7 +79,7 @@ def bpOverlap(lincInt,geneInt):
 
 def printLincs(handle,lincs):
     for linc in lincs:
-        print(linc.getGTF(), end=' ', file=handle)
+        print >>handle, linc.getGTF(),
 
 ############
 #Main
@@ -221,7 +221,7 @@ if __name__=="__main__":
     try:
         try:
             opts,args = getopt.getopt(argv[1:],"hg:o:v",["help","genome","output"])
-        except getopt.error as msg:
+        except getopt.error,msg:
             raise Usage(msg)
 
         #option processing
@@ -256,7 +256,7 @@ if __name__=="__main__":
         printLincs(outHandle,lincs)
         if verbose:
             sys.stderr.write("Done!\n")
-    except Usage as err:
-        print(sys.argv[0].split("/")[-1] + ": " + str(err.msg), file=sys.stderr)
+    except Usage, err:
+        print >>sys.stderr, sys.argv[0].split("/")[-1] + ": " + str(err.msg)
         sys.exit()
 

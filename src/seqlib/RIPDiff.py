@@ -10,8 +10,6 @@ preferrentially enriched in RIP
 #Imports
 ##################
 from . import intervallib
-from . import seqstats
-
 
 ##################
 #Classes

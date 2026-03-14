@@ -64,12 +64,12 @@ def runPrimer3(fastaFile,p3CloneSetFile="/n/rinn_data1/users/lgoff/utils/primer_
         if seqLength-clonePrimerSteps[-1]<=PRIMER_MAX_SIZE:
             sys.stderr.write("%s sequence to short\n" % (i['name']))
             continue
-        print("SEQUENCE_ID=%s\nSEQUENCE_TEMPLATE=%s\n=" % (i['name'],i['sequence']), file=qPCRTmpHandle)
+        print >>qPCRTmpHandle, "SEQUENCE_ID=%s\nSEQUENCE_TEMPLATE=%s\n=" % (i['name'],i['sequence'])
         #print >>cloneTmpHandle, "SEQUENCE_ID=%s\nSEQUENCE_TEMPLATE=%s\nSEQUENCE_INCLUDED_REGION=1,%d\n=" % (i['name'],i['sequence'],len(i['sequence']))
         #print >>cloneTmpHandle, "SEQUENCE_ID=%s\nSEQUENCE_TEMPLATE=%s\nSEQUENCE_PRIMER_PAIR_OK_REGION_LIST=1,%d,%d,%d\n=" % (i['name'],i['sequence'],wiggleRoom,len(i['sequence'])-wiggleRoom,wiggleRoom)
         #print >>cloneTmpHandle, "SEQUENCE_ID=%s\nSEQUENCE_TEMPLATE=%s\nPRIMER_PRODUCT_SIZE_RANGE=%d-%d %d-%d %d-%d %d-%d %d-%d %d-%d\n=" % (i['name'],i['sequence'],len(i['sequence']),len(i['sequence']),len(i['sequence'])-5,len(i['sequence']),len(i['sequence'])-10,len(i['sequence']),len(i['sequence'])-20,len(i['sequence']),len(i['sequence'])-40,len(i['sequence']),len(i['sequence'])-50,len(i['sequence']))
-        print("SEQUENCE_ID=%s\nSEQUENCE_TEMPLATE=%s\nSEQUENCE_INCLUDED_REGION=%d,%d\n=" % (i['name'],i['sequence'],1,len(i['sequence'])), file=cloneTmpHandle)
-        print("SEQUENCE_ID=%s\nSEQUENCE_TEMPLATE=%s\n=" % (i['name'],i['sequence']), file=insituTmpHandle)
+        print >>cloneTmpHandle, "SEQUENCE_ID=%s\nSEQUENCE_TEMPLATE=%s\nSEQUENCE_INCLUDED_REGION=%d,%d\n=" % (i['name'],i['sequence'],1,len(i['sequence']))
+        print >>insituTmpHandle, "SEQUENCE_ID=%s\nSEQUENCE_TEMPLATE=%s\n=" % (i['name'],i['sequence'])
 
     qPCRTmpHandle.close()
     cloneTmpHandle.close()
@@ -109,11 +109,11 @@ def parsePrimer3(p3OutFile):
 
 def printqPCR(p3outFile,outHandle):
     recordIter = parsePrimer3(p3outFile)
-    print("######################\n# qPCR Primers\n######################", file=outHandle)
+    print >>outHandle, "######################\n# qPCR Primers\n######################"
     for record in recordIter:
-        print("%s" % record.sequenceID, file=outHandle)
+        print >>outHandle, "%s" % record.sequenceID
         if len(record.primers)<1:
-            print("\tNo acceptable qPCR primers were found.", file=outHandle)
+            print >>outHandle, "\tNo acceptable qPCR primers were found."
             continue
         else:
             for primer in record.primers:
@@ -123,17 +123,17 @@ def printqPCR(p3outFile,outHandle):
 
                 fwdStr = "\t%d) Amplicon Size: %d\n\t\t%s\tStart: %d\tLength: %d\tTm: %0.2f\tGC: %0.2f" % (primer.number,primer.product_size,fwdSeq,primer.forward_start,len(fwdSeq),primer.forward_tm,primer.forward_gc)
                 revStr = "\t\t%s\tStart: %d\tLength: %d\tTm: %0.2f\tGC: %0.2f" % (revSeq,primer.reverse_start,len(revSeq),primer.reverse_tm,primer.reverse_gc)
-                print(fwdStr, file=outHandle)
-                print(revStr, file=outHandle)
-                print("", file=outHandle)
-        print("--------------------------------", file=outHandle)
+                print >>outHandle, fwdStr
+                print >>outHandle, revStr
+                print >>outHandle, ""
+        print >>outHandle, "--------------------------------"
 
 def printqPCRTabDelim(p3outFile,outHandle):
     recordIter = parsePrimer3(p3outFile)
     #print >>outHandle, "######################\n# qPCR Primers\n######################"
     for record in recordIter:
         if len(record.primers)<1:
-            print("%s\tqPCR\t%s" % (record.sequenceID,'No acceptable qPCR primers were found.'), file=outHandle)
+            print >>outHandle, "%s\tqPCR\t%s" % (record.sequenceID,'No acceptable qPCR primers were found.')
             continue
         else:
             for primer in record.primers:
@@ -141,16 +141,16 @@ def printqPCRTabDelim(p3outFile,outHandle):
                 fwdSeq = primer.forward_seq
                 revSeq = primer.reverse_seq
                 outStr = "%s\tqPCR\t%d\t%d\t%s\t%d\t%d\t%0.2f\t%0.2f\t%s\t%d\t%d\t%0.2f\t%0.2f" % (record.sequenceID,primer.number,primer.product_size,fwdSeq,primer.forward_start,len(fwdSeq),primer.forward_tm,primer.forward_gc,revSeq,primer.reverse_start,len(revSeq),primer.reverse_tm,primer.reverse_gc)
-                print(outStr, file=outHandle)
+                print >>outHandle, outStr
 
 
 def printCloning(p3outFile,outHandle,gateway=False):
     recordIter = parsePrimer3(p3outFile)
-    print("\n######################\n# Cloning Primers\n######################", file=outHandle)
+    print >>outHandle, "\n######################\n# Cloning Primers\n######################"
     for record in recordIter:
-        print("%s" % record.sequenceID, file=outHandle)
+        print >>outHandle, "%s" % record.sequenceID
         if len(record.primers)<1:
-            print("\tNo acceptable Cloning primers were found.", file=outHandle)
+            print >>outHandle, "\tNo acceptable Cloning primers were found."
             continue
         else:
             for primer in record.primers:
@@ -164,17 +164,17 @@ def printCloning(p3outFile,outHandle,gateway=False):
                     gatewayStr = ""
                 fwdStr = "\t%d) Amplicon Size: %d\t%s\n\t\t%s\tStart: %d\tLength: %d\tTm: %0.2f\tGC: %0.2f" % (primer.number,primer.product_size,gatewayStr,fwdSeq,primer.forward_start,len(fwdSeq),primer.forward_tm,primer.forward_gc)
                 revStr = "\t\t%s\tStart: %d\tLength: %d\tTm: %0.2f\tGC: %0.2f" % (revSeq,primer.reverse_start,len(revSeq),primer.reverse_tm,primer.reverse_gc)
-                print(fwdStr, file=outHandle)
-                print(revStr, file=outHandle)
-                print("", file=outHandle)
-        print("--------------------------------", file=outHandle)
+                print >>outHandle, fwdStr
+                print >>outHandle, revStr
+                print >>outHandle, ""
+        print >>outHandle, "--------------------------------"
 
 def printCloningTabDelim(p3outFile,outHandle,gateway=False):
     recordIter = parsePrimer3(p3outFile)
     #print >>outHandle, "\n######################\n# Cloning Primers\n######################"
     for record in recordIter:
         if len(record.primers)<1:
-            print("%s\tCloning\t%s" % (record.sequenceID,'No acceptable primers were found.'), file=outHandle)
+            print >>outHandle, "%s\tCloning\t%s" % (record.sequenceID,'No acceptable primers were found.')
             continue
         else:
             for primer in record.primers:
@@ -187,15 +187,15 @@ def printCloningTabDelim(p3outFile,outHandle,gateway=False):
                     revSeq = primer.reverse_seq
                     gatewayStr = ""
                 outStr = "%s\tCloning\t%d\t%d\t%s\t%d\t%d\t%0.2f\t%0.2f\t%s\t%d\t%d\t%0.2f\t%0.2f" % (record.sequenceID,primer.number,primer.product_size,fwdSeq,primer.forward_start,len(fwdSeq),primer.forward_tm,primer.forward_gc,revSeq,primer.reverse_start,len(revSeq),primer.reverse_tm,primer.reverse_gc)
-                print(outStr, file=outHandle)
+                print >>outHandle, outStr
 
 def printInsitu(p3outFile,outHandle):
     recordIter = parsePrimer3(p3outFile)
-    print("######################\n# InSitu Primers\n######################", file=outHandle)
+    print >>outHandle, "######################\n# InSitu Primers\n######################"
     for record in recordIter:
-        print("%s" % record.sequenceID, file=outHandle)
+        print >>outHandle, "%s" % record.sequenceID
         if len(record.primers)<1:
-            print("\tNo acceptable InSitu primers were found.", file=outHandle)
+            print >>outHandle, "\tNo acceptable InSitu primers were found."
             continue
         else:
             for primer in record.primers:
@@ -205,17 +205,17 @@ def printInsitu(p3outFile,outHandle):
 
                 fwdStr = "\t%d) Amplicon Size: %d\n\t\t%s\tStart: %d\tLength: %d\tTm: %0.2f\tGC: %0.2f" % (primer.number,primer.product_size,fwdSeq,primer.forward_start,len(fwdSeq),primer.forward_tm,primer.forward_gc)
                 revStr = "\t\t%s\tStart: %d\tLength: %d\tTm: %0.2f\tGC: %0.2f" % (revSeq,primer.reverse_start,len(revSeq),primer.reverse_tm,primer.reverse_gc)
-                print(fwdStr, file=outHandle)
-                print(revStr, file=outHandle)
-                print("", file=outHandle)
-        print("--------------------------------", file=outHandle)
+                print >>outHandle, fwdStr
+                print >>outHandle, revStr
+                print >>outHandle, ""
+        print >>outHandle, "--------------------------------"
 
 def printInsituTabDelim(p3outFile,outHandle):
     recordIter = parsePrimer3(p3outFile)
     #print >>outHandle, "######################\n# qPCR Primers\n######################"
     for record in recordIter:
         if len(record.primers)<1:
-            print("%s\tInSitu\t%s" % (record.sequenceID,'No acceptable InSitu primers were found.'), file=outHandle)
+            print >>outHandle, "%s\tInSitu\t%s" % (record.sequenceID,'No acceptable InSitu primers were found.')
             continue
         else:
             for primer in record.primers:
@@ -223,15 +223,15 @@ def printInsituTabDelim(p3outFile,outHandle):
                 fwdSeq = primer.forward_seq
                 revSeq = primer.reverse_seq
                 outStr = "%s\tInSitu\t%d\t%d\t%s\t%d\t%d\t%0.2f\t%0.2f\t%s\t%d\t%d\t%0.2f\t%0.2f" % (record.sequenceID,primer.number,primer.product_size,fwdSeq,primer.forward_start,len(fwdSeq),primer.forward_tm,primer.forward_gc,revSeq,primer.reverse_start,len(revSeq),primer.reverse_tm,primer.reverse_gc)
-                print(outStr, file=outHandle)
+                print >>outHandle, outStr
 
 def printInsitu(p3outFile,outHandle):
     recordIter = parsePrimer3(p3outFile)
-    print("######################\n# InSitu Primers\n######################", file=outHandle)
+    print >>outHandle, "######################\n# InSitu Primers\n######################"
     for record in recordIter:
-        print("%s" % record.sequenceID, file=outHandle)
+        print >>outHandle, "%s" % record.sequenceID
         if len(record.primers)<1:
-            print("\tNo acceptable InSitu primers were found.", file=outHandle)
+            print >>outHandle, "\tNo acceptable InSitu primers were found."
             continue
         else:
             for primer in record.primers:
@@ -241,17 +241,17 @@ def printInsitu(p3outFile,outHandle):
 
                 fwdStr = "\t%d) Amplicon Size: %d\n\t\t%s\tStart: %d\tLength: %d\tTm: %0.2f\tGC: %0.2f" % (primer.number,primer.product_size,fwdSeq,primer.forward_start,len(fwdSeq),primer.forward_tm,primer.forward_gc)
                 revStr = "\t\t%s\tStart: %d\tLength: %d\tTm: %0.2f\tGC: %0.2f" % (revSeq,primer.reverse_start,len(revSeq),primer.reverse_tm,primer.reverse_gc)
-                print(fwdStr, file=outHandle)
-                print(revStr, file=outHandle)
-                print("", file=outHandle)
-        print("--------------------------------", file=outHandle)
+                print >>outHandle, fwdStr
+                print >>outHandle, revStr
+                print >>outHandle, ""
+        print >>outHandle, "--------------------------------"
 
 def printInsituTabDelim(p3outFile,outHandle):
     recordIter = parsePrimer3(p3outFile)
     #print >>outHandle, "######################\n# ASO Candidates\n######################"
     for record in recordIter:
         if len(record.primers)<1:
-            print("%s\tASO\t%s" % (record.sequenceID,'No acceptable ASO candidates were found.'), file=outHandle)
+            print >>outHandle, "%s\tASO\t%s" % (record.sequenceID,'No acceptable ASO candidates were found.')
             continue
         else:
             for primer in record.primers:
@@ -259,7 +259,7 @@ def printInsituTabDelim(p3outFile,outHandle):
                 fwdSeq = primer.forward_seq
                 revSeq = primer.reverse_seq
                 outStr = "%s\tInSitu\t%d\t%d\t%s\t%d\t%d\t%0.2f\t%0.2f\t%s\t%d\t%d\t%0.2f\t%0.2f" % (record.sequenceID,primer.number,primer.product_size,fwdSeq,primer.forward_start,len(fwdSeq),primer.forward_tm,primer.forward_gc,revSeq,primer.reverse_start,len(revSeq),primer.reverse_tm,primer.reverse_gc)
-                print(outStr, file=outHandle)
+                print >>outHandle, outStr
 
 def main(argv=None):
     if argv is None:
@@ -273,7 +273,7 @@ def main(argv=None):
     try:
         try:
             opts, args = getopt.getopt(argv[1:], "hto:vgk", ["help", "output="])
-        except getopt.error as msg:
+        except getopt.error, msg:
             raise Usage(msg)
 
         # option processing
@@ -300,7 +300,7 @@ def main(argv=None):
         outHandle = open(outFile,'w')
         qPCR,cloning,insitu = runPrimer3(fname,verbose=verbose,keepTmp=keepTmp)
         if tabDelim:
-            print("sequenceID\tPrimer Type\tPrimer number\tProduct_size\tFwdSeq\tForward start\tLength Fwd\tFwd Tm\tFwd GC\tRevSeq\tRev start\tLength Rev\tRev Tm\tRev GC", file=outHandle)
+            print >>outHandle, "sequenceID\tPrimer Type\tPrimer number\tProduct_size\tFwdSeq\tForward start\tLength Fwd\tFwd Tm\tFwd GC\tRevSeq\tRev start\tLength Rev\tRev Tm\tRev GC"
             printqPCRTabDelim(qPCR,outHandle)
             printCloningTabDelim(cloning,outHandle,gateway=gateway)
             printInsituTabDelim(insitu,outHandle)
@@ -313,9 +313,9 @@ def main(argv=None):
             os.remove(cloning)
             os.remove(insitu)
 
-    except Usage as err:
-        print(sys.argv[0].split("/")[-1] + ": " + str(err.msg), file=sys.stderr)
-        print("\t for help use --help", file=sys.stderr)
+    except Usage, err:
+        print >> sys.stderr, sys.argv[0].split("/")[-1] + ": " + str(err.msg)
+        print >> sys.stderr, "\t for help use --help"
         sys.exit()
 
 

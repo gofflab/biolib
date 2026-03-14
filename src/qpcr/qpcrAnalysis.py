@@ -26,13 +26,16 @@ python abi.py results.txt cycleData.txt endoControl reference outFile
 ###########################
 #Imports
 ###########################
-import sys
+import itertools
 import math
+import subprocess
+import sys
+
 import numpy as np
 from scipy import optimize
-import subprocess
+
 from . import util
-import itertools
+
 #from seqtools.misc import pp
 #from rpy import *
 

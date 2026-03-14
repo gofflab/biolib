@@ -26,10 +26,12 @@ python abi.py results.txt cycleData.txt endoControl reference outFile
 ###########################
 #Imports
 ###########################
-import sys
 import math
-import numpy as np
 import subprocess
+import sys
+
+import numpy as np
+
 #from seqtools.misc import pp
 #from rpy import *
 
@@ -66,9 +68,9 @@ def getDetAndSamp(data):
     detectors = []
     samples = []
     for well in data:
-        if not well['detector'] in detectors:
+        if well['detector'] not in detectors:
             detectors.append(well['detector'])
-        if not well['sample'] in samples:
+        if well['sample'] not in samples:
             samples.append(well['sample'])
     return detectors,samples
 

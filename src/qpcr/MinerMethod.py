@@ -7,8 +7,10 @@ Created on Sep 1, 2010
 '''
 #!/usr/bin/env python
 import numpy as np
+
 #from scipy import *
-from scipy import optimize # To do model fitting and non linear regression
+from scipy import optimize  # To do model fitting and non linear regression
+
 # NOTE: skidmarks is not Python 3 compatible. Runs test is disabled.
 # from skidmarks import wald_wolfowitz  # Required for runs test of residuals from iterative non-linear regression
 #import scipy.stats.sem as sem
