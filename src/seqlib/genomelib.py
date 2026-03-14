@@ -8,10 +8,17 @@ This is a port of the genome.py module from seqtools (it is a work in progress)
 ############
 #Imports
 ############
-import sequencelib
+from . import sequencelib
 import random
-from pygr import seqdb, sqlgraph, annotation, worldbase, cnestedlist
 import sys
+
+# NOTE: pygr is an unmaintained Python 2-only library. The functions in this
+# module that depend on pygr (pygrConnect, etc.) are non-functional in Python 3.
+try:
+    from pygr import seqdb, sqlgraph, annotation, worldbase, cnestedlist
+    _PYGR_AVAILABLE = True
+except ImportError:
+    _PYGR_AVAILABLE = False
 #######
 #Constants
 #######

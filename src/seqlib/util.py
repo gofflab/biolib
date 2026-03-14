@@ -1694,28 +1694,7 @@ printHist = print_hist
 
 
 
-# import common functions from other files, 
-# so that only util needs to be included
-
-try:
-    from rasmus.timer import *
-except ImportError:
-    pass
-
-try:
-    from rasmus.vector import *
-except ImportError:
-    pass
-
-try:
-    from rasmus.options import *
-except ImportError:
-    pass
-    
-try:
-    from rasmus.plotting import *
-except ImportError:
-    pass
+# NOTE: rasmus library imports removed — rasmus is not Python 3 compatible.
 
 
 

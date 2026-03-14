@@ -31,3 +31,33 @@ where = ["src"]
 
 [tool.setuptools.package-dir]
 "" = "src"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = ["-v", "--tb=short"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+ignore = [
+    "E501",   # line too long — handled by formatter
+    "F403",   # star imports — present in legacy modules
+    "F405",   # may be from star imports
+    "E741",   # ambiguous variable names — common in scientific code (l, O, I)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["F401"]  # unused imports in test smoke tests are fine
+
+[tool.coverage.run]
+source = ["src"]
+omit = [
+    "src/seqlib/genomelib.py",
+    "src/seqlib/pygrlib.py",
+]
+
+[tool.coverage.report]
+show_missing = true
