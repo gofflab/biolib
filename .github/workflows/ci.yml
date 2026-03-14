@@ -37,6 +37,8 @@ jobs:
           sudo apt-get install -y libbz2-dev liblzma-dev libcurl4-openssl-dev
       - name: Install package and dev dependencies
         run: pip install -e ".[dev]"
+        # rpy2 (the [r] extra) requires R in PATH; omitted in CI.
+        # Tests that depend on rpy2 are skipped automatically via pytest.importorskip.
       - name: Run tests
         run: pytest --cov=src --cov-report=xml -v
       - name: Upload coverage

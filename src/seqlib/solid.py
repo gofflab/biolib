@@ -1,7 +1,7 @@
 #!/usr/bin/python
 import sys,os
 #import math
-import misc
+from . import misc
 #from random import choice
 #import string
 
@@ -149,7 +149,7 @@ def CSFastaIterator(handle, matches=False):
             break
     #Begin walk through csfasta records
     while True:
-        if line[0] <>">":
+        if line[0] !=">":
             raise ValueError("Records in csfasta files should start with a '>' character")
         name = line[1:].rstrip()
         #if matches:
@@ -187,7 +187,7 @@ def QualIterator(handle):
         if line [0] == ">":
             break
     while True:
-        if line[0] <>">":
+        if line[0] !=">":
             raise ValueError("Records in .qual files should start with a '>' character")
         qual={}
         qual['name'] = line[1:].rstrip()
@@ -267,7 +267,7 @@ def makeFastq(csfile,qualfile,shortname,outdir="",split=-1,trim=False):
         counter += 1
         if trim:
             i.strip_solid_linker()
-        print >>outhand, """@%s:%s/1\n%s\n+\n%s""" % (shortname,i.name[:-3],i.sequence,SangerQualString(i.qual))
+        outhand.write("""@%s:%s/1\n%s\n+\n%s\n""" % (shortname, i.name[:-3], i.sequence, SangerQualString(i.qual)))
         if split > 0 and counter%split == 0:
             group +=1
             outhand.close()
@@ -326,22 +326,13 @@ def uniqueTable(dir=os.getcwd()):
     keys.sort()
     sys.stderr.write("Writing to output...\n")
     samples.sort()
-    print "#Sequence\t",
-    print "\t".join(samples)
+    print("#Sequence\t" + "\t".join(samples))
     for key in keys:
-        print "%s\t" % key,
-        #print dict[key]
-        
         for sample in samples:
-            if dict[key].has_key(sample):
-                continue
-            else:
+            if sample not in dict[key]:
                 dict[key][sample] = 0
-            
-        #print dict[key]
-        for sample in samples:
-            print "%d\t" % dict[key][sample],
-        print ""
+        row = "%s\t" % key + "\t".join("%d" % dict[key][sample] for sample in samples)
+        print(row)
         
 def filterUnique(uniqueFile,minObs=5):
     """

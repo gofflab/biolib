@@ -40,16 +40,19 @@ def test_intervallib_import():
 
 
 def test_jensen_shannon_import():
+    pytest.importorskip("rpy2", reason="rpy2 not installed")
     from seqlib import JensenShannon
     assert JensenShannon is not None
 
 
 def test_seqstats_import():
+    pytest.importorskip("rpy2", reason="rpy2 not installed")
     from seqlib import seqstats
     assert seqstats is not None
 
 
 def test_mysam_import():
+    pytest.importorskip("rpy2", reason="rpy2 not installed")
     from seqlib import mySam
     assert mySam is not None
 
@@ -75,6 +78,7 @@ def test_blockIt_import():
 
 
 def test_continuous_data_import():
+    pytest.importorskip("rpy2", reason="rpy2 not installed")
     from seqlib import continuousData
     assert continuousData is not None
 
@@ -85,6 +89,7 @@ def test_alignment_import():
 
 
 def test_chip_import():
+    pytest.importorskip("rpy2", reason="rpy2 not installed")
     from seqlib import Chip
     assert Chip is not None
 
@@ -100,6 +105,7 @@ def test_qctools_import():
 
 
 def test_ripdiff_import():
+    pytest.importorskip("rpy2", reason="rpy2 not installed")
     from seqlib import RIPDiff
     assert RIPDiff is not None
 

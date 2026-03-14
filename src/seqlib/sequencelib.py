@@ -1,5 +1,6 @@
 #/usr/bin/env python
-import string,prob,operator,random,math
+import string, operator, random, math
+from . import prob
 
 ######
 #Parsers
@@ -19,7 +20,7 @@ def FastaIterator(handle):
             break
     
     while True:
-        if line[0] <>">":
+        if line[0] !=">":
             raise ValueError("Records in Fasta files should start with a '>' character")
         name = line[1:].rstrip()
         lines = []
@@ -88,7 +89,7 @@ def prob_seq(seq, pGC=.5):
     for char in seq:
         if char in 'CG': ps.append(pGC/2)
         elif char in 'AT': ps.append((1-pGC)/2)
-        else: raise "Unexpected char: ",char
+        else: raise ValueError("Unexpected char: " + repr(char))
     return reduce(operator.mul, ps, 1)
 
 def transcribe(seq):
@@ -184,7 +185,7 @@ def get_seeds(iter,seeds={}):
     for i in iter:
         counter+=1
         if counter%10000==0:
-            print "%d" % counter
+            print("%d" % counter)
         i.CSToDNA()
         seed = i.sequence[1:8]
         seeds[seed] = 1 + seeds.get(seed,0)

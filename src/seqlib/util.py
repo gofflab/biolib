@@ -888,7 +888,7 @@ def evalstr(text):
     local_dict = frame.f_locals
     
     # find all expression to replace
-    m = re.finditer("\$\{(?P<expr>[^\}]*)\}", text)
+    m = re.finditer(r"\$\{(?P<expr>[^\}]*)\}", text)
     
     # build new string
     try:
