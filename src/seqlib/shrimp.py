@@ -1,9 +1,15 @@
 #!/usr/bin/python
-import string,os,random,sys,glob,solid
+import glob
+import os
+import random
+import string
+import sys
 from subprocess import *
-from intervallib import *
-from Alignment import *
+
 import genomelib
+import solid
+from Alignment import *
+from intervallib import *
 
 ###############
 #SHRiMP Program Variables
@@ -98,7 +104,7 @@ def parseShrimp(handle):
         if line [0] == ">":
             break
     while True:
-        if line[0] <>">":
+        if line[0] != ">":
             raise ValueError("Records in Fasta files should start with a '>' character")
         #Split row into list
         parsedList = line[1:].rstrip().split("\t")
@@ -139,7 +145,7 @@ def parseProbcalc(handle):
         if line [0] == ">":
             break
     while True:
-        if line[0] <>">":
+        if line[0] != ">":
             raise ValueError("Records in Fasta files should start with a '>' character")
         #Split row into list
         parsedList = line[1:].rstrip().split("\t")

@@ -17,7 +17,7 @@ Well    Sample    Detector    1    2    3    ...    nCycles
 1    cDNA_1    GapDH    0.11    0.12    0.12    ...    6.57
 
 Usage:
-python abi.py results.txt cycleData.txt endoControl reference outFile 
+python abi.py results.txt cycleData.txt endoControl reference outFile
 
 #TODO: change outFile to outDir
 
@@ -26,10 +26,12 @@ python abi.py results.txt cycleData.txt endoControl reference outFile
 ###########################
 #Imports
 ###########################
-import sys
 import math
+import subprocess
+import sys
+
 import numpy as np
-import commands
+
 #from seqtools.misc import pp
 #from rpy import *
 
@@ -40,7 +42,7 @@ windowSize = 4
 dictKeys = ['well','sample','detector','task','Ct','threshold']
 
 ##########################
-#Parsing 
+#Parsing
 ##########################
 
 def parseData(fname):
@@ -50,7 +52,7 @@ def parseData(fname):
     data = []
     handle = open(fname,'r')
     #Remove Header Row
-    headerRow = handle.next()
+    headerRow = next(handle)
     headerVals = headerRow.rstrip().split('\t')
     #Parse well information
     for line in handle:
@@ -66,12 +68,12 @@ def getDetAndSamp(data):
     detectors = []
     samples = []
     for well in data:
-        if not well['detector'] in detectors:
+        if well['detector'] not in detectors:
             detectors.append(well['detector'])
-        if not well['sample'] in samples:
+        if well['sample'] not in samples:
             samples.append(well['sample'])
     return detectors,samples
-    
+
 def wellIndex(data):
     index = []
     for i in range(len(data)):
@@ -83,20 +85,20 @@ def parseCycleData(fname):
     """
     cycleData = []
     handle = open(fname,'r')
-    headerRow = handle.next()
+    headerRow = next(handle)
     headerVals = headerRow.rstrip().split('\t')
     cycles = headerVals[3:]
-    cycles = map(int,cycles)
+    cycles = list(map(int,cycles))
     ncycles = int(headerVals[-1])
-    
+
     for line in handle:
         values = line.rstrip().split('\t')
         well = int(values.pop(0))
         sample = values.pop(0)
         detector = values.pop(0)
-        values = np.array(map(float,values))
+        values = np.array(list(map(float,values)))
         cycleData.append({'well':well,'sample':sample, 'detector':detector, 'values': values})
-    
+
     return cycleData
 
 ######################
@@ -107,7 +109,7 @@ def getEndoControl(detectors):
     for i in range(0,len(detectors)):
         myString = myString+"\t(%d):\t%s\n" % (i,detectors[i])
     myString = myString + "Choose %s-%s:" % (0,len(detectors))
-    choice = int(raw_input(myString))
+    choice = int(input(myString))
     return detectors[choice]
 
 def getReference(samples):
@@ -115,7 +117,7 @@ def getReference(samples):
     for i in range(0,len(samples)):
         myString = myString + "\t(%d):\t%s\n" % (i,samples[i])
     myString = myString + "Choose %s-%s:" % (0,len(samples))
-    choice = int(raw_input(myString))
+    choice = int(input(myString))
     return samples[choice]
 
 #####################################
@@ -144,7 +146,7 @@ def aggregateReplicateCts(data):
 #####################################
 
 def calculateEfficiencies(cycleData):
-    """Takes a list of dictionaries of cycle information by well and returns those same dictionaries with 
+    """Takes a list of dictionaries of cycle information by well and returns those same dictionaries with
     additional keys for efficiency and concentration (N0) values."""
     res = []
     for well in cycleData:
@@ -156,12 +158,12 @@ def calculateEfficiencies(cycleData):
             corrs[i]=corr(logSlice,np.array(range(1,windowSize+1)))
         #Append best Correlation Index to well
         well['bestIdx'] = np.argmax(corrs)
-        
+
         #Do math on best window
         well['bestCorr'] = corrs[well['bestIdx']]
         well['bestSlice'] = np.array(well['logVals'][well['bestIdx']:well['bestIdx']+windowSize])
         well['bestCycles'] = np.array(range(well['bestIdx']+1,well['bestIdx']+1+windowSize))
-        
+
         well['bestSlope'] = slope(well['bestCycles'],well['bestSlice'])
         well['bestIntercept'] = intercept(well['bestCycles'],well['bestSlice'])
         well['efficiency'] = 10**well['bestSlope']
@@ -182,7 +184,7 @@ def summarizeEfficiencies(cycleData):
     return eff
 
 def mergeDataAndCycleData(data,cycleData,idx):
-    """Takes an index of data (by well) and the cycleData to add the efficiency and N0 from cycleData to the 
+    """Takes an index of data (by well) and the cycleData to add the efficiency and N0 from cycleData to the
     data dictionaries"""
     for c in cycleData:
         try:
@@ -216,7 +218,7 @@ def ddCt(data,medianCts,endoControl,reference):
         for k2 in tmp[k1].keys():
             #print tmp[k1][k2]
             med[k1][k2] = median(tmp[k1][k2])
-     
+
     #Calculate ddCts
     for i in range(len(data)):
         try:
@@ -225,8 +227,8 @@ def ddCt(data,medianCts,endoControl,reference):
         except KeyError:
             data[i]['ddCt'] = "N/A"
             #print "%d\t%s" % (data[i]['well'],data[i]['ddCt'])
-    return data 
-    
+    return data
+
 def RQ(data,effs):
     res = []
     for d in data:
@@ -237,7 +239,7 @@ def RQ(data,effs):
         res.append(d)
         #print "%d\t%s" % (d['well'],d['RQ'])
     return res
-    
+
 
 
 ###############################
@@ -257,11 +259,11 @@ def median(vals):
     """Computes the median of a list of numbers"""
     lenvals = len(vals)
     vals.sort()
-    
+
     if lenvals % 2 == 0:
-        return (vals[lenvals / 2] + vals[lenvals / 2 - 1]) / 2.0
+        return (vals[lenvals // 2] + vals[lenvals // 2 - 1]) / 2.0
     else:
-        return vals[lenvals / 2]
+        return vals[lenvals // 2]
 
 def variance(vals):
     """Variance"""
@@ -278,7 +280,7 @@ def covariance(lst1, lst2):
     m1 = mean(lst1)
     m2 = mean(lst2)
     tot = 0.0
-    for i in xrange(len(lst1)):
+    for i in range(len(lst1)):
         tot += (lst1[i] - m1) * (lst2[i] - m2)
     return tot / (len(lst1)-1)
 
@@ -315,13 +317,13 @@ def aggregateResults(data):
     try:
         data[0]['RQ']
     except KeyError:
-        print "Tried to aggregate RQs before they exist"
+        print("Tried to aggregate RQs before they exist")
         raise
     #Setup intermediate lists to aggregate later
     tmpRQ = {}
     tmpN0 = {}
     tmpdCt = {}
-    
+
     for d in data:
         if d['RQ'] == "N/A": continue
         #print d
@@ -332,11 +334,11 @@ def aggregateResults(data):
         tmpRQ[d['sample']].setdefault(d['detector'],[])
         tmpN0[d['sample']].setdefault(d['detector'],[])
         tmpdCt[d['sample']].setdefault(d['detector'],[])
-        
+
         tmpRQ[d['sample']][d['detector']].append(d['RQ'])
         tmpN0[d['sample']][d['detector']].append(d['N0'])
         tmpdCt[d['sample']][d['detector']].append(d['dCt'])
-    
+
     #Aggregate temporary lists
     res = {}
     for k1 in tmpRQ.keys():
@@ -345,13 +347,13 @@ def aggregateResults(data):
             #print tmp[k1][k2]
             res[k1].setdefault(k2,{})
             #Summarize RQ values
-            RQlist = tmpRQ[k1][k2] 
+            RQlist = tmpRQ[k1][k2]
             naCount = RQlist.count("N/A")
             if naCount == len(RQlist):
                 res[k1][k2]['medianRQ'] = "N/A"
                 res[k1][k2]['meanRQ'] = "N/A"
                 res[k1][k2]['sdevRQ'] = "N/A"
-                
+
                 res[k1][k2]['mediandCt'] = "N/A"
                 res[k1][k2]['meandCt'] = "N/A"
                 res[k1][k2]['sdevdCt'] = "N/A"
@@ -361,30 +363,30 @@ def aggregateResults(data):
                 res[k1][k2]['medianRQ'] = median(RQlist)
                 res[k1][k2]['meanRQ'] = mean(RQlist)
                 res[k1][k2]['sdevRQ'] = sdev(RQlist)
-                
+
                     #Summarize dCt values
                 res[k1][k2]['mediandCt'] = median(tmpdCt[k1][k2])
                 res[k1][k2]['meandCt'] = mean(tmpdCt[k1][k2])
                 res[k1][k2]['sdevdCt'] = sdev(tmpdCt[k1][k2])
-            
+
             #Summarize N0 values (Possibly delete this later)
             res[k1][k2]['medianN0'] = median(tmpN0[k1][k2])
             res[k1][k2]['meanN0'] = mean(tmpN0[k1][k2])
             res[k1][k2]['sdevN0'] = sdev(tmpN0[k1][k2])
-            
+
     return res
-        
+
 def printDataFrameRQs(RQsummary,effs,outFile):
     #Open out Handle
     outHandle = open(outFile,'w')
     #Print header row
-    print "Sample\tDetector\tmeanEff\tmeanRQ\tsdevRQ\tmedianRQ\tmeandCt\tmediandCt\tsdevdCt\tquant\tci.l\tci.u"
-    print >>outHandle, "Sample\tDetector\tmeanEff\tmeanRQ\tsdevRQ\tmedianRQ\tmeandCt\tmediandCt\tsdevdCt\tquant\tci.l\tci.u"
-    for sample,v in RQsummary.iteritems():
-        for detector,v2 in v.iteritems():
+    print("Sample\tDetector\tmeanEff\tmeanRQ\tsdevRQ\tmedianRQ\tmeandCt\tmediandCt\tsdevdCt\tquant\tci.l\tci.u")
+    print("Sample\tDetector\tmeanEff\tmeanRQ\tsdevRQ\tmedianRQ\tmeandCt\tmediandCt\tsdevdCt\tquant\tci.l\tci.u", file=outHandle)
+    for sample,v in RQsummary.items():
+        for detector,v2 in v.items():
             #print "%s\t%s\t%.2f\t%.2f\t%.2f" % (sample,detector,v2['meanRQ'],v2['medianRQ'],v2['sdevRQ'])
-            print "%s\t%s\t%.4f\t%.4f\t%.4f\t%.4f\t%.4f\t%.4f\t%.4f\t%.4f\t%.4f\t%.4f" % (sample,detector,effs[detector]['meanEff'],v2['meanRQ'],v2['sdevRQ'],v2['medianRQ'],v2['meandCt'],v2['mediandCt'],v2['sdevdCt'],effs[detector]['meanEff']**-v2['mediandCt'],effs[detector]['meanEff']**-(v2['mediandCt']+v2['sdevdCt']),effs[detector]['meanEff']**-(v2['mediandCt']-v2['sdevdCt']))
-            print >>outHandle, "%s\t%s\t%.4f\t%.4f\t%.4f\t%.4f\t%.4f\t%.4f\t%.4f\t%.4f\t%.4f\t%.4f" % (sample,detector,effs[detector]['meanEff'],v2['meanRQ'],v2['sdevRQ'],v2['medianRQ'],v2['meandCt'],v2['mediandCt'],v2['sdevdCt'],effs[detector]['meanEff']**-v2['mediandCt'],effs[detector]['meanEff']**-(v2['mediandCt']+v2['sdevdCt']),effs[detector]['meanEff']**-(v2['mediandCt']-v2['sdevdCt']))
+            print("%s\t%s\t%.4f\t%.4f\t%.4f\t%.4f\t%.4f\t%.4f\t%.4f\t%.4f\t%.4f\t%.4f" % (sample,detector,effs[detector]['meanEff'],v2['meanRQ'],v2['sdevRQ'],v2['medianRQ'],v2['meandCt'],v2['mediandCt'],v2['sdevdCt'],effs[detector]['meanEff']**-v2['mediandCt'],effs[detector]['meanEff']**-(v2['mediandCt']+v2['sdevdCt']),effs[detector]['meanEff']**-(v2['mediandCt']-v2['sdevdCt'])))
+            print("%s\t%s\t%.4f\t%.4f\t%.4f\t%.4f\t%.4f\t%.4f\t%.4f\t%.4f\t%.4f\t%.4f" % (sample,detector,effs[detector]['meanEff'],v2['meanRQ'],v2['sdevRQ'],v2['medianRQ'],v2['meandCt'],v2['mediandCt'],v2['sdevdCt'],effs[detector]['meanEff']**-v2['mediandCt'],effs[detector]['meanEff']**-(v2['mediandCt']+v2['sdevdCt']),effs[detector]['meanEff']**-(v2['mediandCt']-v2['sdevdCt'])), file=outHandle)
     outHandle.close()
 
 #######################
@@ -399,8 +401,8 @@ def plotEdCt(results):
     pass
 
 def doPlotting(plotScript = "plotting.q"):
-    return commands.getstatusoutput(plotScript)
-     
+    return subprocess.getstatusoutput(plotScript)
+
 
 def makeDvsS(results,detectors,samples,value = "mediandCt"):
     matrix = np.zeros((len(detectors),len(samples)),float)
@@ -418,40 +420,40 @@ def makeDvsS(results,detectors,samples,value = "mediandCt"):
 
 def main(mainFile,cycleFile):
     #Parse mainFile
-    print "Parsing Results File..."
+    print("Parsing Results File...")
     data = parseData(mainFile)
     medianCts = aggregateReplicateCts(data) #Returns a dictionary of dictionaries by sample and then detector
     myIdx = wellIndex(data)
-    
+
     #Efficiency Calculation from cycleFile
-    print "Parsing CycleData File..."
+    print("Parsing CycleData File...")
     cycleData = parseCycleData(cycleFile)
     cycleData = calculateEfficiencies(cycleData)
     effs = summarizeEfficiencies(cycleData)
-    
+
     detectors,samples = getDetAndSamp(data)
-    print "Found %d detectors (primers)..." % len(detectors)
+    print("Found %d detectors (primers)..." % len(detectors))
     endoControl = getEndoControl(detectors)
-    print "Found %d samples..." % len(samples)
+    print("Found %d samples..." % len(samples))
     reference = getReference(samples)
-    
+
     #Begin E^-ddCt Calculation
     data = ddCt(data,medianCts,endoControl,reference)
     data = RQ(data,effs)
-    
+
     #Add effs and N0 from cycleData to well data
     data = mergeDataAndCycleData(data,cycleData,myIdx)
-    
+
     #detectors,samples = getDetAndSamp(data)
-    
+
     results = aggregateResults(data)
     printDataFrameRQs(results,effs,'output.txt')
-    print "Output in 'output.txt'..."
-    print "Plotting..."
+    print("Output in 'output.txt'...")
+    print("Plotting...")
     status = doPlotting()
-    
+
     return
-    
+
 def test():
     cycleData = parseCycleData('RIP HeLa clipped.txt')
     cycleData = calculateEfficiencies(cycleData)
@@ -466,15 +468,15 @@ def test():
     data = RQ(data,effs)
     data = mergeDataAndCycleData(data,cycleData,myIdx)
     #pp(data)
-    
+
     #Get Unique detectors and Sample Names to aid in plotting
     detectors,samples = getDetAndSamp(data)
-    
+
     results = aggregateResults(data)
     #pp(results)
     printDataFrameRQs(results,effs,'output.txt')
     myMat = makeDvsS(results,detectors,samples)
-    
+
     return myMat
 
 if __name__ == '__main__':

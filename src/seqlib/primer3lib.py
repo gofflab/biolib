@@ -7,7 +7,9 @@ primer3 >= v2.2
 
 @author: lgoff
 '''
-import sys,subprocess
+import subprocess
+import sys
+
 from RNASeq import sequencelib
 
 
@@ -31,13 +33,13 @@ class Record(object):
         self.comments = ""
         self.primers = []
         self.attributes = {}
-    
+
     def __iter__(self):
         return iter(self.primers)
-    
+
     def __repr__(self):
         return "%s: %d primer pair(s)" % (self.sequenceID,len(self.primers))
-    
+
 class Primer(object):
     '''
     A primer set designed by Primer3
@@ -60,10 +62,10 @@ class Primer(object):
         self.reverse_tm = 0.0
         self.reverse_gc = 0.0
         self.product_size = 0
-    
+
     def __repr__(self):
         return "%s_%d\n\tFwd: %s\tRev: %s" % (self.sequenceID,self.number,self.forward_seq, self.reverse_seq)
-    
+
 def parse(handle):
     recordLines = []
     while True:
@@ -108,23 +110,23 @@ def parse(handle):
 #######
 def runPrimer3(fastaFile,task="qpcr",p3CloneSetFile="/seq/compbio-hp/lgoff/lincRNAs/primer_design/P3_cloning_primer_settings.p3",p3PCRSetFile="/seq/compbio-hp/lgoff/lincRNAs/primer_design/P3_qPCR_primer_settings.p3"):
     """Task can be either 'qpcr' or 'cloning'"""
-    
+
     baseName = fastaFile.rstrip(".fa")
     iter = sequencelib.FastaIterator(open(fastaFile,'r'))
     tmpFname = baseName+".p3in"
     tmpHandle = open(tmpFname,'w')
-    
+
     #Make Boulder-IO format...
     for i in iter:
         myString = "SEQUENCE_ID=%s\nSEQUENCE_TEMPLATE=%s\n" % (i['name'],i['sequence'])
         if task == "cloning":
-            myString += "SEQUENCE_INCLUDED_REGION=1,%d\n" % (i['name'],i['sequence'],len(i['sequence']))
+            myString += "SEQUENCE_INCLUDED_REGION=1,%d\n" % len(i['sequence'])
         myString += "="
-        print >>tmpHandle, myString
+        print(myString, file=tmpHandle)
     tmpHandle.close()
-    
+
     P3Command = "primer3_core -p3_settings_file=%s -output=%s.p3out %s"
-    
+
     sys.stderr.write("Designing Primers...\n")
     if task == "qpcr":
         subprocess.Popen(P3Command % (p3PCRSetFile,baseName+"_qPCR",tmpFname),shell=True)

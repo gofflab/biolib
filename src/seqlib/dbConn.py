@@ -1,8 +1,12 @@
 #!/usr/bin/env python
-import MySQLdb,sys,time
-import intervallib
+import sys
+import time
+
 import genomelib
+import intervallib
+import MySQLdb
 import sequencelib
+
 
 ###################
 #
@@ -117,7 +121,7 @@ def fetchRefSeqIntervalsIndexed(genome='hg18',proteinCodingOnly=False,verbose=Fa
             exonStarts = map(int,row['exonStarts'].rstrip().split(",")[:-1])
             exonEnds = map(int,row['exonEnds'].rstrip().split(",")[:-1])
         except:
-            print "\t".join(["%s:%s" % (k,v) for k,v in row.iteritems()])
+            print("\t".join(["%s:%s" % (k,v) for k,v in row.iteritems()]))
         start = int(row['txStart'])
         exonOffsets = [x-start for x in exonStarts]
         exonLengths = []
@@ -156,7 +160,7 @@ def getIntervalFromRefSeq(lookupval,genome='hg18',lookupkey= 'name2',verbose=Fal
             exonStarts = map(int,row['exonStarts'].rstrip().split(",")[:-1])
             exonEnds = map(int,row['exonEnds'].rstrip().split(",")[:-1])
         except:
-            print "\t".join(["%s:%s" % (k,v) for k,v in row.iteritems()])
+            print("\t".join(["%s:%s" % (k,v) for k,v in row.iteritems()]))
         start = int(row['txStart'])
         exonOffsets = [x-start for x in exonStarts]
         exonLengths = []
@@ -181,7 +185,7 @@ def getIntervalFromAll_mRNA(lookupval,genome='hg18',lookupkey='qName',verbose=Fa
             blockSizes = map(int,row['blockSizes'].rstrip().split(",")[:-1])
             exonEnds = [exonStarts[i]+blockSizes[i] for i in xrange(len(exonStarts))]
         except:
-            print "\t".join(["%s:%s" % (k,v) for k,v in row.iteritems()])
+            print("\t".join(["%s:%s" % (k,v) for k,v in row.iteritems()]))
         start = int(row['tStart'])
         exonOffsets = [x-start for x in exonStarts]
         exonLengths = [exonEnds[i]-exonStarts[i]+1 for i in xrange(len(exonStarts))]

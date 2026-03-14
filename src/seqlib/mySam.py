@@ -3,16 +3,18 @@ Created on Oct 25, 2009
 Misc tools to get information from a SAM/BAM file...
 @author: lgoff
 '''
-from Alignment import Alignment
-import intervallib
-import os
-import pysam
 import array
-import numpy
 import collections
+import os
+
+import numpy
+import pysam
 import rpy2.robjects as robjects
-import rpy2.robjects.numpy2ri
-from inOut.wiggle import WiggleFileWriter
+
+from . import intervallib
+from .Alignment import Alignment
+
+# from inOut.wiggle import WiggleFileWriter  # NOTE: inOut.wiggle module not available; WiggleFileWriter commented out
 
 class SAMAlignment(Alignment):
     """Basic object for SAMstring (extends Alignment class)"""
@@ -26,7 +28,7 @@ def SAMReader(fname):
     handle = open(fname,'r')
     for line in handle:
         aln = parseSAMString(line)
-        yield aln.toInterval()   
+        yield aln.toInterval()
 
 def parseSAMString(samstring):
     tokens = samstring.rstrip().split("\t")
@@ -49,10 +51,10 @@ def pileup2wig(fname,shortname,outDir=os.getcwd()+"/"):
     prePos = -1
     prePlus = 0
     preMinus = 0
-    
+
     plusHand = open(outDir+shortname+"_plus.wig",'w')
     minusHand = open(outDir+shortname+"_minus.wig",'w')
-    
+
     def wigHeader(shortname,strand):
         if strand=="+":
             color = '0,0,255'
@@ -60,23 +62,23 @@ def pileup2wig(fname,shortname,outDir=os.getcwd()+"/"):
         elif strand=="-":
             color = '255,0,0'
             sName = 'minus'
-        
+
         return 'track type=wiggle_0 name=%s_%s description=%s_%s color=%s' % (shortname,sName,shortname,sName,color)
-    
-    print >>plusHand, wigHeader(shortname,"+")
-    print >>minusHand, wigHeader(shortname, "-")
-    
+
+    print(wigHeader(shortname,"+"), file=plusHand)
+    print(wigHeader(shortname, "-"), file=minusHand)
+
     for line in handle:
         ref,pos,base,count,reads,quals = line.rstrip().split()
         if ref!=preRef:
             preRef = ref
-            print >>plusHand,"variableStep chrom=%s" % (ref)
-            print >>minusHand, "variableStep chrom=%s" % (ref)
+            print("variableStep chrom=%s" % (ref), file=plusHand)
+            print("variableStep chrom=%s" % (ref), file=minusHand)
         if reads.count(".")>0:
-            print >>plusHand, "%d\t%d" % (int(pos),reads.count("."))
+            print("%d\t%d" % (int(pos),reads.count(".")), file=plusHand)
         if reads.count(",")>0:
-            print >>minusHand, "%d\t%d" % (int(pos),reads.count(","))
-        
+            print("%d\t%d" % (int(pos),reads.count(",")), file=minusHand)
+
             continue
     plusHand.close()
     minusHand.close()
@@ -87,7 +89,7 @@ class Counter:
     mCounts = 0
     def __call__(self,alignment):
         self.mCounts += 1
-        
+
 class StrandCounter:
     """Provides a strand-specific number of reads as opposed to total read density"""
     plusCount = 0
@@ -147,7 +149,7 @@ def samReadsIntersect(a,b,useStrand = True,offset=0):
     """Checks to see if two samReads (a,b) intersect"""
     if useStrand:
         if a.rname == b.rname and a.is_reverse == b.is_reverse:
-            return not(a.pos>b.pos+len(b.seq)+offset or b.pos>a.pos+len(a.seq)+offset) 
+            return not(a.pos>b.pos+len(b.seq)+offset or b.pos>a.pos+len(a.seq)+offset)
         else:
             return False
     else:
@@ -159,41 +161,41 @@ def samReadsIntersect(a,b,useStrand = True,offset=0):
 """
 def makeContiguousIntervals2(samHandle,start='start',end='end',offset=0,useStrand=False):
     '''Generator function to build and iterate over contiguous intervals from a sorted SAM/BAM file.
-    If useStrand is True then the function will iterate over one strand at a time. 
+    If useStrand is True then the function will iterate over one strand at a time.
     '''
     samFetch = samHandle.fetch()
-    current = samFetch.next()
+    current = next(samFetch)
     currentInterval = sam2Interval(current)
-    
+
     for x in samFetch:
-        next = samFetch.next()
+        next = next(samFetch)
         if samReadsIntersect(current,next,useStrand,offset):
             currentInterval.end = max(currentInterval.end,next.pos+len(next.seq)+1)
             currentInterval.readcount += 1
         else:
             yield currentInterval
-            current = samFetch.next()
-            currentInterval = sam2Interval(current)    
-"""            
+            current = next(samFetch)
+            currentInterval = sam2Interval(current)
+"""
 def makeContiguousIntervalsByStrand(samHandle,offset=0):
     for strand in ["+","-"]:
         samFetch = samScanByStrand(samHandle.fetch(),strand)
-        current = samFetch.next()
+        current = next(samFetch)
         currentInterval = sam2Interval(current)
-        
-        for next in samFetch:
-            if samReadsIntersect(current,next,offset=offset):
-                currentInterval.end = max(currentInterval.end,next.pos+len(next.seq)+1)
+
+        for nxt in samFetch:
+            if samReadsIntersect(current, nxt, offset=offset):
+                currentInterval.end = max(currentInterval.end, nxt.pos + len(nxt.seq) + 1)
                 currentInterval.readcount += 1
             else:
                 yield currentInterval
-                current = samFetch.next()
+                current = next(samFetch)
                 currentInterval = sam2Interval(current)
         yield currentInterval
-        
-def generate_pileup_chunks(read_iterator, 
-                           start, end, 
-                           unique_only=True, 
+
+def generate_pileup_chunks(read_iterator,
+                           start, end,
+                           unique_only=True,
                            merge_strands=False,
                            fragment_length=-1,
                            dtype=numpy.uint32,
@@ -203,7 +205,7 @@ def generate_pileup_chunks(read_iterator,
     don't use this function with RNA-seq data because it does not pileup spliced reads properly
     '''
     assert chunk_size >= max_rlen
-    assert end > start 
+    assert end > start
     # figure out the boundaries of the first chunk
     chunk_bounds = (start,
                     min(start + chunk_size, end))
@@ -216,7 +218,7 @@ def generate_pileup_chunks(read_iterator,
     for read in read_iterator:
         # ignore duplicate reads
         if unique_only and read.is_duplicate:
-            continue            
+            continue
         # get attributes from AlignedRead object
         read_start = read.pos
         read_length = read.rlen
@@ -229,17 +231,17 @@ def generate_pileup_chunks(read_iterator,
         if fragment_length <= 0:
             fragment_length = read_length
         # shift the reverse strand reads if the merge_strands option is enabled
-        if merge_strands is True:            
+        if merge_strands is True:
             if read.is_reverse:
                 read_start = max(0, read_start + read_length - fragment_length)
-        # now that negative strand tags are shifted, modify the effective read 
+        # now that negative strand tags are shifted, modify the effective read
         # length to the user specified a DNA fragment length
-        read_length = fragment_length        
+        read_length = fragment_length
         # only consider reads that align within the desired region
         if read_start >= end:
             break
         if (read_start + read_length) > start:
-            # if the read starts after the end of the current chunk, need to write the 
+            # if the read starts after the end of the current chunk, need to write the
             # chunk and shift to the next chunk
             while read_start >= chunk_bounds[1]:
                 if chunk_dirty:
@@ -269,18 +271,18 @@ def generate_pileup_chunks(read_iterator,
         chunk_dirty = chunk_data[0:max_rlen].any()
         # get next chunk
         chunk_bounds = (chunk_bounds[0] + chunk_size,
-                        min(chunk_bounds[1] + chunk_size, end))        
+                        min(chunk_bounds[1] + chunk_size, end))
     # delete chunk array
     del chunk_data
 
 
-def bam_to_wiggle(inbamfile, wigfile, 
+def bam_to_wiggle(inbamfile, wigfile,
                   unique_only=False,
                   merge_strands=False,
                   fragment_length=-1,
                   norm=False):
-    #logger = logging.getLogger(__name__)    
-    bamfile = pysam.Samfile(inbamfile, 'rb')
+    #logger = logging.getLogger(__name__)
+    bamfile = pysam.AlignmentFile(inbamfile, 'rb')
 
     # count reads and get other info from BAM file
     reads = 0
@@ -292,10 +294,10 @@ def bam_to_wiggle(inbamfile, wigfile,
         reads += 1
         read_lengths[read.rlen] += 1
     # find normalization factor
-    if norm == True:        
+    if norm == True:
         # find best read length
         best_read_length, best_count = 0, 0
-        for read_length, count in read_lengths.iteritems():
+        for read_length, count in read_lengths.items():
             if count > best_count:
                 best_count = count
                 best_read_length = read_length
@@ -307,15 +309,16 @@ def bam_to_wiggle(inbamfile, wigfile,
 
     refs = bamfile.references
     lengths = bamfile.lengths
+    # NOTE: WiggleFileWriter is unavailable (inOut.wiggle not importable); this will raise NameError if called
     wigglewriter = WiggleFileWriter(wigfile, compress=True, span=10)
     # convert each chromosome to wiggle
     for ref, length in zip(refs, lengths):
-        # pileup the reads chunks at a time        
-        for pileupchunk in generate_pileup_chunks(bamfile.fetch(ref), 
-                                                  start=0, 
+        # pileup the reads chunks at a time
+        for pileupchunk in generate_pileup_chunks(bamfile.fetch(ref),
+                                                  start=0,
                                                   # TODO: some wiggle writing error with length going past limit
-                                                  end=length - max(0, fragment_length), 
-                                                  unique_only=unique_only, 
+                                                  end=length - max(0, fragment_length),
+                                                  unique_only=unique_only,
                                                   merge_strands=merge_strands,
                                                   fragment_length=fragment_length,
                                                   chunk_size=1048576):
@@ -324,7 +327,7 @@ def bam_to_wiggle(inbamfile, wigfile,
                 chunk_data *= norm_factor
             #wigglewriter.write_variable_step(ref, chunk_start, chunk_end, chunk_data)
             wigglewriter.write_span(ref, chunk_start, chunk_end, chunk_data)
-        #logger.debug("BAM %s -> WIG %s chromsome %s finished" % (inbamfile, wigfile, ref))    
+        #logger.debug("BAM %s -> WIG %s chromsome %s finished" % (inbamfile, wigfile, ref))
     # wiggle file done
     wigglewriter.close()
     # done with BAM file
@@ -335,7 +338,7 @@ def bamFetchFlank(bamHandle,chr,pos,flankSize=1000,fragment_length=200):
     #Create container to hold pos +- (flankSize+fragment_length)
     arr = numpy.zeros(2*(flankSize+fragment_length)+1)
     range = (pos-flankSize-fragment_length,pos+flankSize+fragment_length)
-    
+
     readIter = bamHandle.fetch(chr,range[0],range[1])
     for read in readIter:
         if read.is_unmapped:
@@ -347,9 +350,9 @@ def bamFetchFlank(bamHandle,chr,pos,flankSize=1000,fragment_length=200):
             fragment_length = read_length
         if read.is_reverse:
             read_start = max(0, read_start + read_length - fragment_length)
-        # now that negative strand tags are shifted, modify the effective read 
+        # now that negative strand tags are shifted, modify the effective read
         # length to the user specified a DNA fragment length
-        read_length = fragment_length        
+        read_length = fragment_length
         # only consider reads that align within the desired region
         arr[max(0, read_start - range[0]):read_start + read_length - range[0]] += 1
     return arr[fragment_length:fragment_length+2*flankSize+1]
@@ -358,9 +361,9 @@ def bamFetchFlank_byStrand(bamHandle,chr,pos,flankSize=1000,fragment_length=200,
     """This does not work with gapped alignments"""
     senseArr = numpy.zeros(2*(flankSize+fragment_length)+1)
     antisenseArr = numpy.zeros(2*(flankSize+fragment_length)+1)
-    
+
     range = (pos-flankSize-fragment_length,pos+flankSize+fragment_length)
-    
+
 
     readIter = bamHandle.fetch(chr,range[0],range[1])
     for read in readIter:
@@ -368,11 +371,11 @@ def bamFetchFlank_byStrand(bamHandle,chr,pos,flankSize=1000,fragment_length=200,
             continue
         read_start = read.pos
         read_length = read.rlen
-    
+
         if not read.is_reverse:
             if fragment_length <= 0:
                 fragment_length = read_length
-                   
+
             read_length = fragment_length
             senseArr[max(0,read_start - range[0]):read_start + read_length - range[0]] += 1
         else:
@@ -381,27 +384,27 @@ def bamFetchFlank_byStrand(bamHandle,chr,pos,flankSize=1000,fragment_length=200,
                 read_start = max(0,read_start + read_length - fragment_length)
             antisenseArr[max(0,read_start-range[0]):read_end - range[0]] += 1
     return (senseArr[fragment_length:fragment_length+2*flankSize+1:span],antisenseArr[fragment_length:fragment_length+2*flankSize+1:span])
-       
+
 def bamFetchInterval(bamHandle,chr,start,end,fragment_length=200,span=1):
     """This does not work with gapped alignments"""
-    
+
     senseArr = numpy.zeros(end-start+(2*fragment_length)+1)
     antisenseArr = numpy.zeros(end-start+(2*fragment_length)+1)
-    
+
     range = (start-fragment_length,end+fragment_length)
     intervalSize = end-start+1
-    
+
     readIter = bamHandle.fetch(chr,range[0],range[1])
     for read in readIter:
         if read.is_unmapped:
             continue
         read_start = read.pos
         read_length = read.rlen
-        
+
         if not read.is_reverse:
             if fragment_length <=0:
                 fragment_length = read_length
-            
+
             read_length = fragment_length
             senseArr[max(0,read_start - range[0]):read_start + read_length - range[0]] += 1
         else:
@@ -432,7 +435,7 @@ def makeCigarMask(cigar,increment=1):
     cigarMask = []
     for type,run in components:
         if type in incrementTypes:
-            for i in xrange(run):
+            for i in range(run):
                 cigarMask.append(incrementTable[type])
     return cigarMask
 
@@ -446,7 +449,7 @@ def makePysamCigarMask(cigarTuple,increment=1):
     cigarMask = []
     for operation,run in cigarTuple:
         if lookupTable[operation] in incrementTypes:
-            for i in xrange(run):
+            for i in range(run):
                 cigarMask.append(incrementTable[lookupTable[operation]])
     return cigarMask
 
@@ -455,7 +458,7 @@ def bamFetchGappedInterval(bamHandle,chr,start,end,span=1):
     intervalSize = end-start+1
     senseArr = numpy.zeros(intervalSize)
     antisenseArr = numpy.zeros(intervalSize)
-    
+
     readIter = bamHandle.fetch(chr,start,end)
     for read in readIter:
         if read.is_unmapped:
@@ -471,9 +474,9 @@ def bamFetchGappedInterval(bamHandle,chr,start,end,span=1):
                 leftOffset = -(readStart-start)
             else:
                 leftOffset = 0
-            
+
             Debugging...
-            
+
             #print read.pos #(this is the problem Samtools takes reads that start before 'start')
             print readStart-start
             print mask
@@ -494,15 +497,15 @@ def findLargestKmer(bamHandle,chr,start,end,strand,k=21,gapped=False,span=1):
         sense,antisense = bamFetchInterval(bamHandle,chr,start,end,span=span)
     else:
         sense,antisense = bamFetchGappedInterval(bamHandle,chr,start,end,span=span)
-    
+
     if strand == "+":
         myArr = sense
     elif strand == "-":
         myArr = antisense
-    
+
     maxVal = 0
     maxPos = -1
-    for i in xrange(end-start+1-k):
+    for i in range(end-start+1-k):
         slice = myArr[i:i+k]
         if sum(slice)>maxVal:
             maxVal = sum(slice)
@@ -511,10 +514,10 @@ def findLargestKmer(bamHandle,chr,start,end,strand,k=21,gapped=False,span=1):
 
 def plotInterval(bamFiles,chr,start,end,name="",span=1,pdfName = "",sumStrands=False):
     nplots = len(bamFiles)
-    
+
     #Setup plot environment
     if not pdfName == "":
-        print "Printing figure to %s..." % (pdfName)
+        print("Printing figure to %s..." % (pdfName))
         robjects.r.pdf(pdfName,width=8,height=12)
     robjects.r.par(mfrow=array.array('i',[nplots,1]),mar=array.array('i',[2,2,1,0]))
     xaxt = "n"
@@ -524,7 +527,7 @@ def plotInterval(bamFiles,chr,start,end,name="",span=1,pdfName = "",sumStrands=F
         if count == nplots:
             xaxt = "s"
         baseFname = bamFile.rstrip(".bam")
-        bamHandle = pysam.Samfile(bamFile,'rb')
+        bamHandle = pysam.AlignmentFile(bamFile,'rb')
         sense,antisense = bamFetchGappedInterval(bamHandle,chr,start,end,span=span)
 
         if sumStrands == False:
@@ -543,7 +546,7 @@ def plotInterval(bamFiles,chr,start,end,name="",span=1,pdfName = "",sumStrands=F
 def bamStats(bamFile):
     rtrn ={}
     #Fetch total reads in Bam by chromosome
-    samfile = pysam.Samfile(bamFile,'rb')
+    samfile = pysam.AlignmentFile(bamFile,'rb')
     iter = samfile.fetch(until_eof=True)
     rtrn['readDist'] = {}
     for i in iter:
@@ -554,20 +557,20 @@ def getrRNAReads(bamFile,rRNABedFile):
     """Takes a bed file of rRNA genes and queries the bam file to determine the number of unique reads that are mapping to rRNA genes in a given sample"""
     reads = []
     bedIter = intervallib.parseBed(rRNABedFile)
-    samfile = pysam.Samfile(bamFile,'rb')
+    samfile = pysam.AlignmentFile(bamFile,'rb')
     for bed in bedIter:
         #print "%s\t%s:%d-%d" % (bed.name,bed.chr,bed.start,bed.end)
         res = samfile.fetch(bed.chr,bed.start,bed.end)
         for read in res:
             reads.append(read.qname)
-    print "Collapsing to unique"
+    print("Collapsing to unique")
     return len(uniqify(reads))
 
-def uniqify(seq): 
-    # Not order preserving 
-    keys = {} 
-    for e in seq: 
-        keys[e] = 1 
+def uniqify(seq):
+    # Not order preserving
+    keys = {}
+    for e in seq:
+        keys[e] = 1
     return keys.keys()
 
 def collapseMatrix(fname):
@@ -577,13 +580,13 @@ def collapseMatrix(fname):
     header = header.split("\t")[1:]
     sums = numpy.zeros(len(header))
     names = []
-    
+
     for line in handle:
         vals = line.rstrip().split("\t")
         sample = vals.pop(0)
         name = vals.pop(0)
         names.append(name)
-        vals = numpy.array(map(float,vals))
+        vals = numpy.array([float(x) for x in vals])
         sums += vals
-        print name
+        print(name)
     return names,sums

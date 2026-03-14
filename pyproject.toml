@@ -1,0 +1,88 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "biolib"
+version = "0.2.0"
+description = "Personal compbio utility library for sequence analysis and qPCR"
+requires-python = ">=3.12"
+license = { text = "MIT" }
+authors = [
+    { name = "lgoff" },
+]
+readme = "README.md"
+
+dependencies = [
+    "numpy>=1.26",
+    "scipy>=1.12",
+    "pysam>=0.22",
+    "pandas>=2.0",
+]
+
+[project.optional-dependencies]
+r = [
+    "rpy2>=3.5",
+]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "ruff>=0.4",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-dir]
+"" = "src"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = ["-v", "--tb=short"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+ignore = [
+    # Style — handled by formatter or not worth fixing in legacy code
+    "E501",   # line too long
+    "E401",   # multiple imports on one line
+    "E701",   # multiple statements on one line (colon)
+    "E711",   # comparison to None with == (legacy style)
+    "E712",   # comparison to True/False (legacy style)
+    "E713",   # not in test
+    "E721",   # type comparison with ==
+    "E722",   # bare except
+    "E741",   # ambiguous variable names (l, O, I) — common in scientific code
+    # Whitespace — tabs and trailing spaces throughout legacy code
+    "E101",   # mixed spaces and tabs — occurs inside tab-delimited string literals
+    "W191",   # indentation contains tabs
+    "W291",   # trailing whitespace
+    "W292",   # no newline at end of file
+    "W293",   # whitespace before ':'
+    # Imports
+    "F401",   # imported but unused — widespread in legacy modules
+    "F403",   # star imports — present in legacy modules
+    "F405",   # may be from star imports
+    # Variables / names
+    "F601",   # 'in' membership test
+    "F811",   # redefinition of unused name
+    "F821",   # undefined name — legacy code with forward refs / dynamic imports
+    "F841",   # local variable assigned but never used
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["F401"]  # unused imports in test smoke tests are fine
+
+[tool.coverage.run]
+source = ["src"]
+omit = [
+    "src/seqlib/genomelib.py",
+    "src/seqlib/pygrlib.py",
+]
+
+[tool.coverage.report]
+show_missing = true

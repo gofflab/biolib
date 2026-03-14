@@ -1,6 +1,6 @@
+import xml.sax.handler
 from xml.sax import make_parser
 from xml.sax.handler import feature_namespaces
-import xml.sax.handler
 
 
 def readGo(filename):
@@ -14,7 +14,7 @@ def readGo(filename):
         try:
             terms[tokens[0]].append(tokens[4])
         except:
-            print line
+            print(line)
     
     return terms
 

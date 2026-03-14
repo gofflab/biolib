@@ -8,10 +8,18 @@ This is a port of the genome.py module from seqtools (it is a work in progress)
 ############
 #Imports
 ############
-import sequencelib
 import random
-from pygr import seqdb, sqlgraph, annotation, worldbase, cnestedlist
 import sys
+
+from . import sequencelib
+
+# NOTE: pygr is an unmaintained Python 2-only library. The functions in this
+# module that depend on pygr (pygrConnect, etc.) are non-functional in Python 3.
+try:
+    from pygr import annotation, cnestedlist, seqdb, sqlgraph, worldbase
+    _PYGR_AVAILABLE = True
+except ImportError:
+    _PYGR_AVAILABLE = False
 #######
 #Constants
 #######
@@ -89,7 +97,7 @@ def fetch_genbases(genhandle,genbases={}):
     bases = ['A','T','G','C','N']
     geniter = sequencelib.FastaIterator(genhandle)
     for genseq in geniter:
-        print genseq['name']
+        print(genseq['name'])
         seq = genseq['sequence'].upper()
         for b in bases:
             genbases[b] = seq.count(b) + genbases.get(b,0)

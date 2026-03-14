@@ -8,13 +8,14 @@ Created on Aug 27, 2010
 ############
 #Imports
 ############
-import GTFlib
-import intervallib
-import dbConn
 import bisect
-import sys,getopt
-from misc import rstrips
 import copy
+import getopt
+import sys
+
+import dbConn
+import GTFlib
+from misc import rstrips
 
 ############
 #Constants
@@ -66,7 +67,7 @@ def test5PrimeOverlap(lincInt,geneInt):
         else:
             return False
     else:
-        raise ValueError("Could not determine")  
+        raise ValueError("Could not determine")
 
 def bpOverlap(lincInt,geneInt):
     assert lincInt.overlaps(geneInt), "%s and %s do not overlap" % (lincInt.name,geneInt.name)
@@ -75,10 +76,10 @@ def bpOverlap(lincInt,geneInt):
     #range = bounds[3]-bounds[0]
     overlap = bounds[2]-bounds[1]
     return overlap
-        
+
 def printLincs(handle,lincs):
     for linc in lincs:
-        print >>handle, linc.getGTF(),
+        print(linc.getGTF(), end=' ', file=handle)
 
 ############
 #Main
@@ -87,16 +88,16 @@ def printLincs(handle,lincs):
 def main(gtfFile,genome='hg19'):
     #Parse GTF File for lincs
     lincIter = GTFlib.GTFGeneIterator(gtfFile,verbose=verbose)
-    
+
     #Retrieve and index RefSeq genes
     refSeqs = dbConn.fetchRefSeqIntervalsIndexed(genome=genome,proteinCodingOnly=True,verbose=verbose)
-    
+
     #Results container
     res = set([])
-    
+
     #Container for gene:linc assoc.
     geneLincs = {}
-        
+
     #Loop through lincRNAs
     for linc in lincIter:
         flag = False
@@ -104,31 +105,31 @@ def main(gtfFile,genome='hg19'):
         asFlag = False #True if linc is antisense
         #Convert to Interval
         interval = linc.toInterval()
-        
+
         #Test for weird chromosome (ie. not in refSeqs.keys() )
-        if not interval.chr in refSeqs.keys():
+        if interval.chr not in refSeqs.keys():
             res.add(linc)
             continue
 
         #Bug tracking only
         if verbose:
             sys.stderr.write(str(interval)+"\n")
-        
+
         #Get list of gene positions that are relevant
         senseGeneStarts = [x.start for x in refSeqs[interval.chr][interval.strand]]
         senseGeneEnds = [x.end for x in refSeqs[interval.chr][interval.strand]]
-    
+
         #Get opposite strand to test
         testStrand = strandLookup[interval.strand]
-        
+
         #Test overlap with genes on opposite strand
         for gene in refSeqs[interval.chr][testStrand]:
             extendedInterval = copy.copy(interval)
             extendedInterval.grow5_prime(extensionLength)
-            
+
             if extendedInterval.overlaps(gene):
-                #If 5' end of linc overlaps the 5' of a coding gene on the opposite strand, 
-                #by more than 0bp but less than min(BP_THRESH * length(L), BP_THRESH * length(coding gene)) 
+                #If 5' end of linc overlaps the 5' of a coding gene on the opposite strand,
+                #by more than 0bp but less than min(BP_THRESH * length(L), BP_THRESH * length(coding gene))
                 #THEN name linc "linc-[HUGO_GENE_NAME]-BP"
                 overlap = bpOverlap(extendedInterval,gene)
                 fivePrime = test5PrimeOverlap(extendedInterval,gene)
@@ -141,7 +142,7 @@ def main(gtfFile,genome='hg19'):
                     bdFlag = True
                     #break
                     continue
-                
+
                 #TODO FIX this so that ANY overlap that is not a BP becomes and -AS
                 if not bdFlag:
                     linc.propogateLincName("linc-%s-AS" % gene.name)
@@ -162,13 +163,13 @@ def main(gtfFile,genome='hg19'):
             except IndexError:
                 #If I cannot find the nearestGene (e.g. end of chromosome or something, just push linc to results
                 #and deal with them later. (for now)
-                
+
                 #print nearestGeneIdx
                 #print interval.toBed()
                 res.add(linc)
                 continue
             geneLincs.setdefault(nearestGene.name,[]).append(linc)
-        
+
     #Evaluate container for linc:gene assocs
     """
     FOREACH coding gene G in the table above:
@@ -220,9 +221,9 @@ if __name__=="__main__":
     try:
         try:
             opts,args = getopt.getopt(argv[1:],"hg:o:v",["help","genome","output"])
-        except getopt.error,msg:
+        except getopt.error as msg:
             raise Usage(msg)
-        
+
         #option processing
         for option,value in opts:
             if option in ("-g","--genome"):
@@ -233,12 +234,12 @@ if __name__=="__main__":
                 verbose = True
             if option in ("-o","--output"):
                 outFile = value
-        
+
         #debugging
         #print opts
         #print args
-        
-        try:        
+
+        try:
             assert len(args)==1
             gtfFile = args[0]
         except:
@@ -255,7 +256,7 @@ if __name__=="__main__":
         printLincs(outHandle,lincs)
         if verbose:
             sys.stderr.write("Done!\n")
-    except Usage, err:
-        print >>sys.stderr, sys.argv[0].split("/")[-1] + ": " + str(err.msg)
+    except Usage as err:
+        print(sys.argv[0].split("/")[-1] + ": " + str(err.msg), file=sys.stderr)
         sys.exit()
-    
+

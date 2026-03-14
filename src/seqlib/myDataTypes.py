@@ -23,12 +23,12 @@ class Stack:
         self.stack = [obj] + self.stack
     
     def pop(self):
-        if not self.stack: raise error, 'underflow'
+        if not self.stack: raise error('underflow')
         top, self.stack = self.stack[0], self.stack[1:]
         return top
-    
+
     def top(self):
-        if not self.stack: raise error, 'underflow'
+        if not self.stack: raise error('underflow')
         return self.stack[0]
     
     def empty(self):
@@ -67,7 +67,7 @@ class BinaryTree:
     def __init__(self):
         self.tree = EmptyNode()
     def __repr__(self):
-        return `self.tree`
+        return repr(self.tree)
     def lookup(self,value):
         return self.tree.lookup(value)
     def insert(self,value):
@@ -98,7 +98,7 @@ class BinaryNode:
             self.right = self.right.insert(value)
         return self
     def __repr__(self):
-        return '( %s, %s, %s )' % (`self.left`, `self.data`, `self.right`)
+        return '( %s, %s, %s )' % (repr(self.left), repr(self.data), repr(self.right))
 
 ################
 #Directed Acyclic Graphs

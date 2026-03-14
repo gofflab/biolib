@@ -3,7 +3,10 @@ Created on Nov 26, 2010
 
 @author: lgoff
 '''
-import sys, math, random
+import math
+import random
+import sys
+
 
 #Classes
 class Point:
@@ -20,7 +23,7 @@ class Point:
     # Return a string representation of this Point
     def __repr__(self):
         return str(self.coords)
-    
+
 class Cluster:
     # -- The Cluster class represents clusters of points in n-dimensional space
     # Instance variables
@@ -129,10 +132,10 @@ def main(args):
     # Cluster the points using the K-means algorithm
     clusters = kmeans(points, k, cutoff)
     # Print the results
-    print "\nPOINTS:"
-    for p in points: print "P:", p
-    print "\nCLUSTERS:"
-    for c in clusters: print "C:", c
+    print("\nPOINTS:")
+    for p in points: print("P:", p)
+    print("\nCLUSTERS:")
+    for c in clusters: print("C:", c)
 
 if __name__=="__main__":
     main(sys.argv)

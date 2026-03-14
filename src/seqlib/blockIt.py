@@ -7,7 +7,8 @@ Invitrogen (Block-It Kit)
 @author: lgoff
 '''
 import sys
-import sequencelib as sequence
+
+from . import sequencelib as sequence
 
 fwdAdapter = 'TGCTG'
 loopSequence = 'GTTTTGGCCACTGACTGAC'
@@ -20,9 +21,9 @@ def makeBlockItInsert(seq):
 
 def printBlockIt(seqs):
     """Takes as input the tuple returned from makeBlockItInsert and prints the result to stdout"""
-    print "FWD:\t%s" % seqs[0]
-    print "REV:\t%s" % seqs[1]
-    
+    print("FWD:\t%s" % seqs[0])
+    print("REV:\t%s" % seqs[1])
+
     alignment = '    '
     revRev = seqs[1][::-1]
     for i in range(len(seqs[1])-4):
@@ -33,7 +34,7 @@ def printBlockIt(seqs):
             alignment+=" "
 ###
 #Main
-###    
+###
 if __name__ == '__main__':
     seq = sys.argv[1]
     makeBlockItInsert(seq)

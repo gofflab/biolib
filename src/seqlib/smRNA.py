@@ -4,20 +4,21 @@ Created on Oct 8, 2009
 Generates list of candidate siRNAs from .fasta sequence given as argument
 
 @author: lgoff
-'''
 
-"""
-http://www.protocol-online.org/prot/Protocols/Rules-of-siRNA-design-for-RNA-interference--RNAi--3210.html
-"""
-import sequencelib
-import math,sys,blockIt
-    
+Reference: http://www.protocol-online.org/prot/Protocols/Rules-of-siRNA-design-for-RNA-interference--RNAi--3210.html
+'''
+import math
+import sys
+
+from . import blockIt, sequencelib
+
+
 def main(fastaFile):
     """Do it all"""
     handle = open(fastaFile,'r')
     iter = sequencelib.FastaIterator(handle)
     for i in iter:
-        print "%s|Candidate siRNAs:" % (i['name'])
+        print("%s|Candidate siRNAs:" % (i['name']))
         evaluateSequence(i["sequence"])
         
 def evaluateSequence(seq,scoreCutoff=6):
@@ -26,9 +27,9 @@ def evaluateSequence(seq,scoreCutoff=6):
         candidate = seq[i:i+21]
         score = testCandidate(candidate)
         if score>=6:
-            print "\t%d\t%s\t%.2f" % (i,candidate,score),
+            print("\t%d\t%s\t%.2f" % (i,candidate,score), end=' ')
             insertSeqs = blockIt.makeBlockItInsert(candidate)
-            print "Fwd:%s\tRev:%s" % (insertSeqs[0],insertSeqs[1]) 
+            print("Fwd:%s\tRev:%s" % (insertSeqs[0],insertSeqs[1])) 
             
 def testCandidate(seq):
     """Checks 21mer candidates against siRNA rules and assigns a score on a scale of 0-8"""
@@ -211,25 +212,25 @@ def veraMain(fastaFile):
     handle = open(fastaFile,'r')
     iter = sequencelib.FastaIterator(handle)
     for i in iter:
-        print "-----------------------------------------------------------------\n%s Promoter Candidate dsRNAs\n-----------------------------------------------------------------" % (i['name'])
+        print("-----------------------------------------------------------------\n%s Promoter Candidate dsRNAs\n-----------------------------------------------------------------" % (i['name']))
         candidates = scanPromoter(i['sequence'])
         for candidate in candidates[:10]:
             dsRNA = makeDsRNA(candidate['seq'])
-            print "Pos:\t%d\nCandidate:\t%s\nScore:\t%.2f\nTm:\t%.2f\nGC:\t%.2f\nFwd:\t%s\nRev:\t%s\n------------------------" % (candidate['pos'],candidate['seq'],candidate['score'],candidate['Tm'],candidate['gc'],dsRNA[0],dsRNA[1])
+            print("Pos:\t%d\nCandidate:\t%s\nScore:\t%.2f\nTm:\t%.2f\nGC:\t%.2f\nFwd:\t%s\nRev:\t%s\n------------------------" % (candidate['pos'],candidate['seq'],candidate['score'],candidate['Tm'],candidate['gc'],dsRNA[0],dsRNA[1]))
 
 def ASOMain(fastafile):
     """Takes a fasta sequnce of RNAs, reverse-complements and scans for ASO sequences"""
     handle = open(fastafile,'r')
     iter = sequencelib.FastaIterator(handle)
     for i in iter:
-        print "----------------------------------------------------------\n%s ASO Candidate Regions (sequence is transcript-strand)\n---------------------------------------------------------" % (i['name'])
+        print("----------------------------------------------------------\n%s ASO Candidate Regions (sequence is transcript-strand)\n---------------------------------------------------------" % (i['name']))
         candidates = ASOscan(i['sequence'])
         for candidate in candidates[:10]:
             #dsRNA = makeDsRNA(candidate['seq'])
             if candidate['seq'].count('a')+candidate['seq'].count('t')+candidate['seq'].count('g')+candidate['seq'].count('c') >0:
                 continue
             else:
-                print "Pos:\t%d\nCandidate:\t%s\nScore:\t%.2f\nTm:\t%.2f\nGC:\t%.2f\n------------------------" % (candidate['pos'],candidate['seq'],candidate['score'],candidate['Tm'],candidate['gc'])
+                print("Pos:\t%d\nCandidate:\t%s\nScore:\t%.2f\nTm:\t%.2f\nGC:\t%.2f\n------------------------" % (candidate['pos'],candidate['seq'],candidate['score'],candidate['Tm'],candidate['gc']))
 
 
 if __name__=="__main__":

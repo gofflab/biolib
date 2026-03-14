@@ -6,9 +6,15 @@ Created on Jun 25, 2009
 '''
 # import genomelib
 import copy
+import os
+import random
+import string
+import subprocess
+import sys
+
 import numpy as np
-import algorithms
-import os,sys,random,string,commands
+
+from . import algorithms
 
 #Common
 RNAFOLD = 'RNAfold -noPS'
@@ -20,11 +26,11 @@ class Interval:
         At this point, the Interval class is rather human specific so avoid calls to self.fetchSequence() or self.getChrNum(), etc...
     """
     def __init__(self, chr, start, end, strand="*", score=0.0, readcount = -1,name="",sequence = "",data={},genome="hg18"):
-        
+
         #Check if creating new instance from old instance as 1st arg
         if isinstance(chr,Interval):
             interval = chr
-            
+
             #Copy information from other instance
             self.chr = interval.chr
             self.start = interval.start
@@ -36,7 +42,7 @@ class Interval:
             self.data = copy.copy(interval.data)
             self.genome = interval.genome
             self.TSS = interval.TSS
-   
+
         else:
             #default settings for new init
             self.chr=chr
@@ -59,30 +65,30 @@ class Interval:
             self.genome = genome
             self.startIndex = -1
             self.endIndex = -1
-                   
+
     def getTSS(self):
         if self.strand == "+":
             self.TSS = self.start
         elif self.strand == "-":
             self.TSS = self.end
         return self.TSS
-    
+
     def addChild(self, child):
         """Adds child node to self.children"""
         #assert child not in self.children
         #if child not in self.children:
         child.parents.append(self)
         self.children.append(child)
-    
+
     def removeChild(self, child):
         """Removes child node from self.children (not sure how or if this works. Don't trust it yet)"""
         child.parents.remove(self)
         self.children.remove(child)
-    
+
     def childScores(self):
         """Returns list of scores for each interval in self.children"""
         return [x.score for x in self.children]
-    
+
     def makeValMap(self,value = 'readcount'):
         """Check these two to see which one is right..."""
         self.valMap = np.zeros(len(self))
@@ -96,13 +102,13 @@ class Interval:
         for nt in range(0,len(myTmp)):
             if len(myTmp[nt])>0:
                 self.valMap[nt]=sum(myTmp[nt])/len(myTmp[nt])
-     
+
     def __iter__(self):
         return iter(self.sequence)
-    
+
     def __getitem__(self,key):
         return self.sequence[key]
-    
+
     def __repr__(self):
         if self.name == "":
             return "%s:%d-%d:%s" % (self.chr,self.start,self.end,self.strand)
@@ -113,58 +119,69 @@ class Interval:
         strandLookup = {"+":"-","-":"+"}
         newStrand = strandLookup[self.strand]
         return Interval(self.chr,self.start,self.end,newStrand,self.score,self.readcount)
-    
+
     def __len__(self):
         return self.end-self.start+1
-    
+
     def __str__(self):
         if self.sequence != "":
             return self.sequence
         else:
             return self.name
-    
-    def __cmp__(self,b):
-        if self.equals(b):return 0
-        chrTest = cmp(self.getChrNum(),b.getChrNum())
-        if chrTest==0:
-            mid1 = (self.start+self.end)/2 
-            mid2 = (b.start+b.end)/2
-            return cmp(mid1,mid2)
-        else:
-            return chrTest 
-    
+
+    def __lt__(self, b):
+        chr_test_a = self.getChrNum()
+        chr_test_b = b.getChrNum()
+        if chr_test_a != chr_test_b:
+            return chr_test_a < chr_test_b
+        mid1 = (self.start + self.end) / 2
+        mid2 = (b.start + b.end) / 2
+        return mid1 < mid2
+
+    def __eq__(self, b):
+        return self.equals(b)
+
+    def __le__(self, b):
+        return self.__lt__(b) or self.__eq__(b)
+
+    def __gt__(self, b):
+        return not self.__le__(b)
+
+    def __ge__(self, b):
+        return not self.__lt__(b)
+
     def windows(self,windowSize):
         """Generator that yields windows across the interval self.start -- self.end"""
         for i in range(0,len(self)-windowSize):
             yield (i,i+windowSize)
-    
+
     def toBed(self,value = 'score'):
         """Change value to readcount to return number of reads within interval"""
         return "%s\t%d\t%d\t%s\t%.2f\t%s" %(self.chr,self.start,self.end,self.name,self.__dict__[value],self.strand)
-    
+
     def toUCSC(self):
         return "%s:%d-%d" % (self.chr,self.start,self.end)
-    
+
     def toStringNumIGV(self):
         return "%s\t%d" % (self.chr.replace("chr",""),self.start)
-    
+
     def toFasta(self):
         return ">%s\n%s" % (self.name,self.sequence)
-    
+
     def getString(self):
         return "%s:%d-%d:%s" % (self.chr,self.start,self.end,self.strand)
-    
+
     def getScore(self):
         return self.score
-    
+
     def getStrand(self):
         return self.strand
-    
+
     def mature(self,start,end):
         """Can be used to treat self as a microRNA Precursor.  By using matureStart and matureEnd you can define miRNA boundaries."""
         self.matureStart = start
         self.matureEnd = end
-    
+
 #    def overlaps_old(self,b):
 #        """Return true if b overlaps self"""
 #        if b.chr != self.chr :return False
@@ -172,7 +189,7 @@ class Interval:
 #            return True
 #        else:
 #            return False
-    
+
     def overlaps(self,b):
         """Return true if b overlaps self"""
         if b.chr != self.chr :return False
@@ -180,9 +197,9 @@ class Interval:
             return True
         else:
             return False
-    
+
     def distance(self,b,enforceStrand=False):
-        """Returns absolute distance between self and another interval start positions.  
+        """Returns absolute distance between self and another interval start positions.
         Returns -1 if they are on different chromosome. If enforceStrand=True, then this function requires that both intervals
         be on the same strand. If they aren't, -1 is returned.
         """
@@ -193,11 +210,11 @@ class Interval:
                 return -1
         else:
             return abs(self.start-b.start)
-    
+
     def distanceBetweenTSS(self,b):
         """
         Returns the distance between two interval TSSs.
-        """ 
+        """
         if self.chr != b.chr:
             return False
         if self.strand == "+":
@@ -206,7 +223,7 @@ class Interval:
             return self.TSS-b.TSS
         else:
             return False
-    
+
     def findDist(self,b):
         """
         """
@@ -218,21 +235,21 @@ class Interval:
             return self.TSS-b.start
         elif self.strand == "-" and b.strand == "-":
             return self.TSS-b.end
-        
+
     def isFullyContained(self,b):
         """Returns True if b is fully contained within self"""
         if b.chr != self.chr: return False
         if(b.start>=self.start and b.end<=self.end):return True
         else:
             return False
-    
+
     def equals(self,b):
         """Returns True if b has the same start and end as self"""
         if (self.chr != b.chr): return False
         if (self.start==b.start and self.end == b.end):return True
         else:
             return False
-    
+
     def getChrNum(self):
         """Assumes human (hg18) but fetches a chromosome 'number' to be used for sorting"""
         chrLookup = {"X":23,"x":23,"Y":24,"y":24}
@@ -242,7 +259,7 @@ class Interval:
                 num = chrLookup[num]
             return int(num)
         else: return self.chr
-    
+
     def fetchSequence(self):
         if self.genome != "":
             genome = genomelib.pygrConnect(self.genome)
@@ -253,7 +270,7 @@ class Interval:
         else:
             self.sequence = ''
         return self.sequence
-    
+
     def fetchSequence2(self,contig = None):
         """Trying to be faster than fetchSequence by providing the pygr chromosome as an argument ('contig').  This should help avoid having to make multiple calls and speed
         up the sequence retrieval.
@@ -272,23 +289,23 @@ class Interval:
         """Makes sequence into RNA"""
         self.sequence = self.sequence.replace("T","U")
         return
-    
+
     def getGC(self):
         """Returns GC fraction of self.sequence"""
         numGC = self.sequence.upper().count("G") + self.sequence.upper().count("C")
         self.gc = float(numGC)/len(self.sequence)
-        return self.gc 
-    
+        return self.gc
+
     def getPromoter(self,promUp=2000,promDown=0):
         if self.strand == "+":
             align = Interval(self.chr,self.start-promUp,self.start+promDown,self.strand,score=self.score,name=self.name+"_promoter")
         elif self.strand == "-":
             align = Interval(self.chr,self.end-promDown,self.end+promUp,self.strand,score=self.score,name = self.name+"_promoter")
-        return align  
-    
+        return align
+
     def fold(self):
         command = "echo '%s' | %s" % (self.sequence,RNAFOLD)
-        output = commands.getoutput(command)
+        output = subprocess.getoutput(command)
         if len(output.split())>2:
             self.structure,self.mfe = output.split()[1:]
             self.mfe = float(self.mfe.strip("(").rstrip(")"))
@@ -304,13 +321,13 @@ class Interval:
             return True
         else:
             return False
-        
+
     def isMinus(self):
         if self.strand=="-":
             return True
         else:
             return False
-    
+
     def nmer_dictionary(self,n,dic={}):
         """
         Returns nmer_dictionary from self.sequence
@@ -329,13 +346,13 @@ class Interval:
             return not(self.start>b.end+offset or b.start>self.end+offset)
         else:
             return False
-    
+
     def grow5_prime(self,length):
         if self.strand == "+":
             self.start = self.start-length
         elif self.strand == "-":
             self.end = self.end+length
-    
+
     def grow3_prime(self,length):
         if self.strand == "+":
             self.end = self.end+length
@@ -348,55 +365,55 @@ class SplicedInterval(Interval):
         Interval.__init__(self,chr,start,end,strand,score=score, readcount = readcount,name=name,sequence = sequence,data=data,genome=genome)
         self.exonLengths = [int(x) for x in exonLengths.rstrip(",").split(",")]
         self.exonOffsets = [int(x) for x in exonOffsets.rstrip(",").split(",")]
-        self.exonStarts = [self.start+self.exonOffsets[i] for i in xrange(0,len(self.exonOffsets))]
-        self.exonEnds = [self.start+self.exonOffsets[i]+self.exonLengths[i] for i in xrange(0,len(self.exonStarts))]
+        self.exonStarts = [self.start+self.exonOffsets[i] for i in range(0,len(self.exonOffsets))]
+        self.exonEnds = [self.start+self.exonOffsets[i]+self.exonLengths[i] for i in range(0,len(self.exonStarts))]
         self.numExons = len(self.exonStarts)
-    
+
     def __len__(self):
         return self.CDSlen()
-    
+
     def intervalLen(self):
         """Length of genomic footprint for self (ie. end-start+1)"""
         return self.end-self.start+1
-    
+
     def CDSlen(self):
         """Returns length of the exons"""
         return sum(self.exonLengths)
-    
+
     def getExons(self):
         """Returns list of intervals corresponding to exonic sequences for self"""
         rtrn = []
         for i in range(0,len(self.exonStarts)):
             rtrn.append(Interval(self.chr,self.exonStarts[i],self.exonEnds[i],self.strand,name = self.name+"_exon_"+str(i+1)))
         return rtrn
-    
+
     def getIntrons(self):
         """Returns list of intervals corresponding to intronic sequences for self"""
         rtrn = []
         for i in range(0,len(self.exonStarts)-1):
             rtrn.append(Interval(self.chr,self.exonEnds[i]+1,self.exonStarts[i+1]-1))
         return rtrn
-    
+
     def fetchSplicedSequence(self):
         """Self explanatory"""
         connection = genomelib.pygrConnect(self.genome)
         components = []
-        for i in xrange(0,len(self.exonStarts)):
+        for i in range(0,len(self.exonStarts)):
             components.append(connection[self.chr][self.exonStarts[i]:self.exonStarts[i]+self.exonLengths[i]])
         if self.strand =="-":
             components = [-x for x in components]
             components = components[::-1]
         self.splicedSequence = "".join([str(x) for x in components])
         self.sequence = self.splicedSequence
-    
+
     def toFasta(self):
         """Return fasta format"""
         return ">%s\n%s" % (self.name,self.splicedSequence)
-    
+
     def toBed(self,value = 'score',rgb='0,0,0'):
         """Change value to readcount to return number of reads within interval"""
         return "%s\t%d\t%d\t%s\t%.2f\t%s\t%d\t%d\t%s\t%d\t%s\t%s" %(self.chr,self.start,self.end,self.name,self.__dict__[value],self.strand,self.start,self.end,rgb,len(self.exonStarts),",".join([str(x) for x in self.exonLengths]),",".join([str(x) for x in self.exonOffsets]))
-    
+
     def makePNG(self,outDir=os.getcwd(),tmpFname='temp.R'):
         """
         Draws transcript structure of the interval to the file 'self.name'.png
@@ -429,30 +446,30 @@ if (strand=='+'){
 
 dev.off()""" % (self.name,self.chr,self.start,self.end,self.strand,",".join([str(x) for x in self.exonLengths]),",".join([str(x) for x in self.exonOffsets]),outDir)
         tmpHandle = open(tmpFname,'w')
-        print >>tmpHandle, rscript
+        print(rscript, file=tmpHandle)
         tmpHandle.close()
-        commands.getoutput('R CMD BATCH --vanilla %s' % tmpFname)
+        subprocess.getoutput('R CMD BATCH --vanilla %s' % tmpFname)
         os.remove(tmpFname)
         return
-                    
-                
+
+
 ########
 #Generic interval operations
 ########
 
 def findIntervalPos(intervals,pos):
     """Find the first interval that starts after 'pos' in a sorted list of 'Intervals'"""
-    low,top = algorithms.binsearch(intervals,pos-1,lambda a,b: cmp(a.start,b))
+    low,top = algorithms.binsearch(intervals,pos-1,lambda a,b: (a.start > b) - (a.start < b))
     return (low,top)
 
 def findInterval(intervals,interval):
     """Find an interval in a sorted list of 'intervals'"""
-    low,ind = algorithms.binsearch(intervals,interval.start-1,lambda a,b: cmp(a.start,b))
+    low,ind = algorithms.binsearch(intervals,interval.start-1,lambda a,b: (a.start > b) - (a.start < b))
     return (low,ind)
-    
+
 def iterChrom(intervals,start,end,index = None):
     """An iterator that walks down a sorted list of intervals"""
-    
+
     nintervals = len(intervals)
     #find index
     if index == None:
@@ -460,7 +477,7 @@ def iterChrom(intervals,start,end,index = None):
         index = findIntervalPos(intervals,start)
         if index == None:
             return
-    
+
     #walk down chromosome
     while index < nintervals and intervals[index].start < end:
         yield intervals[index]
@@ -475,39 +492,39 @@ def intervalLookup(intervals,key = "ID"):
     Returns a dict lookup of regions based on a key (default = "ID")
     """
     lookup = {}
-    
+
     for interval in intervals:
         ikey = None
-        
+
         if key in interval.data:
             ikey = interval.data[key]
         else:
             ikey = key(interval)
-        
+
         if ikey is not None:
             assert ikey not in lookup, Exception("duplicate key '%s'" % ikey)
             lookup[ikey] = interval
-    
+
     return lookup
 
 def joinIntervalsSum(myIntervals,start='start',end='end',score='readcount',sampleName=".",offset=0):
     """This will return a list of non-overlapping intervals and sum their scores (score)"""
-    
+
     if not myIntervals: return myIntervals
     non_overlapping = []
     sep = {'+':[],'-':[]}
-    
-    print "Splitting intervals by strand"
+
+    print("Splitting intervals by strand")
     for i in myIntervals:
         sep[i.strand].append(i)
-    
-    print "Joining intervals..."
+
+    print("Joining intervals...")
     for strand in sep.keys():
-        print strand
+        print(strand)
         intervals = sep[strand]
         intervals.sort()
-        
-        
+
+
         current = copy.copy(intervals[0])
         for x in intervals[1:]:
             next = copy.copy(x)
@@ -520,9 +537,9 @@ def joinIntervalsSum(myIntervals,start='start',end='end',score='readcount',sampl
                 current = copy.copy(next)
         current.name=sampleName
         non_overlapping.append(current)
-    print "Sorting intervals"
+    print("Sorting intervals")
     non_overlapping.sort()
-    print "Done"
+    print("Done")
     return non_overlapping
 
 def intervals2wig(iter,sampleName="",outDir=os.getcwd(),scratchDir=os.getcwd()):
@@ -532,30 +549,30 @@ def intervals2wig(iter,sampleName="",outDir=os.getcwd(),scratchDir=os.getcwd()):
     """
     seqs = {}
     count = 0
-    print "Preparing Dictionary of alignments\nEach '.' is 10000 alignments"
+    print("Preparing Dictionary of alignments\nEach '.' is 10000 alignments")
     for interval in iter:
         count = count+1
         if count % 10000 == 0:
             sys.stdout.write(".")
         if count % 100000 == 0:
-            print "\n%d" % (count)
-        if not seqs.has_key(interval.chr):
+            print("\n%d" % (count))
+        if interval.chr not in seqs:
             seqs[interval.chr]={'+':scratchDir+"/"+GenRandom(),'-':scratchDir+"/"+GenRandom()}
         FILE = open(seqs[interval.chr][interval.strand],'a')
         for i in range(interval.start,len(interval)+1):
-            print >>FILE, "%d\t%d" % (i,interval.readcount)
-    print "Done preparing dictionary, Begin sort and write"
-    chrKeys = seqs.keys()
+            print("%d\t%d" % (i,interval.readcount), file=FILE)
+    print("Done preparing dictionary, Begin sort and write")
+    chrKeys = list(seqs.keys())
     chrKeys.sort()
     for chr in chrKeys:
-        print "Printing " + chr
-        strands = seqs[chr].keys()
+        print("Printing " + chr)
+        strands = list(seqs[chr].keys())
         for strand in strands:
             INPUT = open(seqs[chr][strand],'r')
             filename = outDir + "/%s_%s_%s.wig" % (sampleName,chr,strand)
             OUTPUT = open(filename,'w')
             OUTPUT.write("track type=wiggle_0 name='%s_%s_%s' description='Wiggle Track for read alignment of %s sample to %s'\n" % (sampleName,chr,strand,sampleName,chr))
-            print strand
+            print(strand)
             positions = {}
             while True:
                 line = INPUT.readline()
@@ -564,11 +581,11 @@ def intervals2wig(iter,sampleName="",outDir=os.getcwd(),scratchDir=os.getcwd()):
                 pos,obs = int(pos),int(obs)
                 try: positions[pos]=positions[pos]+obs
                 except KeyError: positions[pos]=obs
-            posKeys = positions.keys()
+            posKeys = list(positions.keys())
             posKeys.sort()
             for pos in posKeys:
                 wigLine = "%s\t%d\t%d\t%d" % (chr,int(pos),int(pos)+1,positions[pos])
-                print >>OUTPUT, wigLine
+                print(wigLine, file=OUTPUT)
             os.remove(seqs[chr][strand])
     return
 
@@ -582,7 +599,7 @@ def parseBed(fname):
     Generator that returns an iterator over spliced or unspliced BED entries.
     Iterates as Interval or SplicedInterval objects.
     """
-    
+
     handle=open(fname,'r')
     for line in handle:
         if line.startswith("#"):
@@ -635,9 +652,9 @@ def FastaIterator(handle):
         if line == "" : return #Premature end of file, or just empty?
         if line [0] == ">":
             break
-    
+
     while True:
-        if line[0] <>">":
+        if line[0] != ">":
             raise ValueError("Records in Fasta files should start with a '>' character")
         name = line[1:].rstrip()
         lines = []
@@ -650,7 +667,7 @@ def FastaIterator(handle):
         #Return record then continue
         newSeq = {'name':name,'sequence':"".join(lines)}
         yield newSeq
-        
+
         if not line : return #StopIteration
     assert False, "Should not reach this line"
 
@@ -661,15 +678,15 @@ def makeTSSMap(TSSBedfile,compareBedFile,flankSize=1000):
     Only increments when there is a start, does not add expression value (score).
     """
     compareDict = preprocessBed(compareBedFile)
-    sys.stderr.write("Processing file: %s\n" ) % (compareBedFile)
+    sys.stderr.write("Processing file: %s\n" % (compareBedFile,))
     sense = np.zeros(2*flankSize+1)
     antisense = np.zeros(2*flankSize+1)
-    
+
     iter = parseBed(TSSBedfile)
-    sys.stderr.write("Iterating over TSSs from %s\n") % TSSBedfile
+    sys.stderr.write("Iterating over TSSs from %s\n" % TSSBedfile)
     count = 0
     for i in iter:
-        if count % 100 == 0: sys.stderr.write("%d\n") % count
+        if count % 100 == 0: sys.stderr.write("%d\n" % count)
         count +=1
         for j in compareDict[i.chr]:
             myDist = i.distanceBetweenTSS(j)
@@ -679,7 +696,7 @@ def makeTSSMap(TSSBedfile,compareBedFile,flankSize=1000):
                 elif i.strand != j.strand:
                     antisense[myDist+flankSize]+=1
     return sense,antisense
-        
+
 def fetchRefSeqDict(RefSeqBed="/fg/compbio-t/lgoff/magda/references/human/transcriptome/hg18/hg18_RefSeq.bed"):
     """
     Returns a dictionary of RefSeq intervals using default hg18 RefSeq file...
@@ -713,7 +730,7 @@ def makeTSSBed(fname,outFname):
             myInterval.end = myInterval.start
         elif myInterval.strand == "-":
             myInterval.start = myInterval.end
-        print >>outHandle, myInterval.toBed()        
+        print(myInterval.toBed(), file=outHandle)
 
 def parseGalaxyCons(fname):
     """Parses bed-like output of conservation fetch from Galaxy webserver"""
@@ -738,7 +755,7 @@ def parseGalaxyCons(fname):
 
 def findNearest(myInterval,IntervalList):
     """It would be nice to write some sort of binary search for Intervals"""
-    
+
     myDist = 9999999999999999999
     res = 0
     for i in IntervalList:
@@ -746,9 +763,9 @@ def findNearest(myInterval,IntervalList):
         if distance > 0 and distance < myDist:
             myDist = distance
             res = i
-    return res 
+    return res
 
-def GenRandom(length = 10, chars=string.letters+string.digits):
+def GenRandom(length = 10, chars=string.ascii_letters+string.digits):
     """
     Generates random string (by default, length=10)
     """

@@ -3,10 +3,14 @@ Created on Jun 3, 2010
 
 @author: lgoff
 '''
+import os
+import sys
+
 import intervallib
-import os,sys
+
 #from seqtools import dbConn
 import MySQLdb
+
 
 def main(bedFile,lincLotID):
     
@@ -34,7 +38,7 @@ def main(bedFile,lincLotID):
         i.fetchSplicedSequence()
     
         #Make master tab-delim for insert
-        print >>tmpHandle, "\t".join(['NULL',i.name,i.chr,str(i.start),str(i.end),i.strand,",".join([str(x) for x in i.exonLengths]),",".join([str(x) for x in i.exonOffsets]),i.splicedSequence,str(lincLotID)])
+        print("\t".join(['NULL',i.name,i.chr,str(i.start),str(i.end),i.strand,",".join([str(x) for x in i.exonLengths]),",".join([str(x) for x in i.exonOffsets]),i.splicedSequence,str(lincLotID)]), file=tmpHandle)
         #insertRecord(i,lincLotID,db=db)
         
         #Make plots
@@ -53,10 +57,10 @@ def main(bedFile,lincLotID):
 
 def drawModelPNG(bedRecord,outDir=os.getcwd(),verbose=False):
     if verbose:
-        print "Making transcript model plot..."
+        print("Making transcript model plot...")
     bedRecord.makePNG(outDir)
     if verbose:
-        print "\t"+bedRecord.name
+        print("\t"+bedRecord.name)
     return
 
 def insertRecord(lincRNA,lincLotID):
@@ -67,7 +71,7 @@ def insertRecord(lincRNA,lincLotID):
     cursor.execute(insert)
     try:
         db.commit()
-        print insert
+        print(insert)
     except:
         db.rollback()
     return
@@ -87,7 +91,7 @@ def bed2Fa(fname):
     
     for i in iter:
         i.fetchSplicedSequence()
-        print >>outHandle, i.toFasta()
+        print(i.toFasta(), file=outHandle)
         sys.stderr.write(i.name+"\n")
     return    
 

@@ -1,6 +1,12 @@
 #!/usr/bin/env python
-import math,operator,random,sys
+import math
+import operator
+import random
+import sys
+from functools import reduce
+
 import numpy as np
+
 
 #######
 #Probability Tools for DNA sequence analysis
@@ -26,12 +32,12 @@ def which_bin(bins, x, safe=0):
     for i in range(1,len(bins)):
         if x<bins[i]: return i-1
     if safe and x==bins[-1]: return len(bins)
-    return len(i)+1 
-        
+    return len(bins)
+
 def cumulative_sum(quality):
     if not quality: return quality
     sum_q = quality[:]
-    for i in range(1,len(quality)):  
+    for i in range(1,len(quality)):
         sum_q[i] = sum_q[i-1]+quality[i]
     return sum_q
 
@@ -67,7 +73,7 @@ def pick_many(dic, n):
     choices = []
     for i in range(0,n):
         x = random.uniform(0,cums[-1])
-        bin = which_bin(cums, x, safe=1)   
+        bin = which_bin(cums, x, safe=1)
         choices.append(items[bin+1][0])
     return choices
 
@@ -76,7 +82,7 @@ def gaussian(x,mu,sigma):
     Evaluate N(mu,sigma) at x.
     where N(mu,sigma) is a gaussian of mean mu and stdev sigma
     """
-    
+
     return ( (1.0/math.sqrt(2*math.pi*sigma)) * (math.e**(-((x-mu)**2)/(2*sigma**2))))
 
 def make_gaussian(mu,sigma):
@@ -109,7 +115,7 @@ def avg(l,precise=0):
 
 def movavg(s, n):
     ''' returns an n period moving average for the time series s
-       
+
         s is a list ordered from oldest (index 0) to most recent (index -1)
         n is an integer
 
@@ -122,9 +128,9 @@ def movavg(s, n):
 
 def median(l):
     if not l: return None
-    l = my_sort(l)
-    if len(l)%2: return my_sort(l)[len(l)/2]
-    else: return (l[len(l)/2]+l[len(l)/2-1])/2.0
+    l = sorted(l)
+    if len(l)%2: return sorted(l)[len(l)//2]
+    else: return (l[len(l)//2]+l[len(l)//2-1])/2.0
 
 def stdev(l, failfast=1):
     return math.sqrt(variance(l,failfast=failfast))
@@ -159,10 +165,10 @@ def p2bits(p):
     return -log2(p)
 
 def factorial(n):
-    result = 1  
+    result = 1
     for i in range(n,0,-1):
         #print i
-        result = result * i   
+        result = result * i
     return result
 
 ###########
@@ -170,8 +176,8 @@ def factorial(n):
 ###########
 def poisson_expected(rate):
     for x in range(1,50,1):
-        p = poisson(rate,x)  
-        print "%s\t%s\t%s"%(x,p,12000000*p)
+        p = poisson(rate,x)
+        print(f"{x}\t{p}\t{12000000*p}")
 
 def poisson(rate, x):
     """Returns the probability of observing a count of x"""
@@ -192,17 +198,17 @@ def binomial_likelihood_ratio(ps,k,n):
     #return p
     if likelihoods[0]: return np.log(likelihoods[1]) / likelihoods[0]
     else:
-        print "Warning: likelihood ratio set to sys.maxint.  p(H1)=%s, p(H0)=0"%(p[1])
-        return sys.maxint
-        
-def binomial_log_likelihood_ratio(ps,k,n): 
+        print("Warning: likelihood ratio set to sys.maxsize.  p(H1)=%s, p(H0)=0"%(p[1]))
+        return sys.maxsize
+
+def binomial_log_likelihood_ratio(ps,k,n):
     return log_binomial(ps[1],k,n) - log_binomial(ps[0],k,n)
 
 def log_binomial(p,k,n):
     # the log probability of seeing exactly k successes in n trials
     # given the probability of success is p
     return log_n_choose_k(n,k)+math.log(p)*k+math.log(1-p)*(n-k)
-    
+
 def binomial(p,k,n):
     # probability of seeing exactly k successes in n trials, given
     # the probability of success is p
@@ -228,7 +234,7 @@ def n_choose_k(n,k):
     denominator = range(k,0,-1)
 
     result = 1.0
-    for nom, den in map(None, nominator, denominator):
+    for nom, den in zip(nominator, denominator):
         result = (result * nom) / den
         #result = result*nom
         #print result
@@ -247,20 +253,20 @@ def log_n_choose_k(n,k):
     k = min(k, n-k)
     nominator   = range(n,n-k,-1)
     denominator = range(k,0,-1)
-    
+
     result = 0
-    for nom, den in map(None, nominator, denominator): 
+    for nom, den in zip(nominator, denominator):
         result = (result + math.log(nom)) - math.log(den)
     return result
 
 #################
 #Dictionary Tools
 #################
-def cget(diclist, key, strict=1): 
+def cget(diclist, key, strict=1):
     # cross_get was: gather(diclist,key)
     # gathers the same key from a list of dictionaries
     # can also be used in lists
-    
+
     # input: a list of dictionaries all of which contains key
     # output: a list of elements d[key] for each d in diclist
     if strict:

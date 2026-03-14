@@ -3,16 +3,17 @@ Created on Jun 29, 2011
 
 @author: lgoff
 '''
-import os, re
+import os
+import re
 import subprocess
-import time
 import sys
+import time
 
-from misc import pp
+# from misc import pp  # rasmus library removed - not Python 3.12 compatible
 
 #Constants
 lsf_mem = 32
-lsf_default_queue = "normal_parallel" # normal_parallel  since it has less users 
+lsf_default_queue = "normal_parallel" # normal_parallel  since it has less users
 
 #######################
 #Error Handling
@@ -39,7 +40,7 @@ class LSFJob(object):
 		#Don't use blocking because this is a limiting resource on Odyssey LSF
 		'''
 		self.cmd_str = cmd_str
-		
+
 		global lsf_default_queue
 		if queue_name == None:
 			self.queue = lsf_default_queue
@@ -54,7 +55,7 @@ class LSFJob(object):
 			self.errfile = tmp_name("bsub_err_")
 		else:
 			self.errfile = errfilename
-		
+
 		self.job_name = job_name
 		self.group = job_group
 		self.job_mem = job_mem
@@ -62,90 +63,90 @@ class LSFJob(object):
 		self.complete = False
 		self.status = 'NOT SUBMITTED'
 		self.jobID= -999
-				
+
 		self.submit_time = ""
 		self.exec_host = ""
 		self.submit_host = ""
-		
+
 		bsub_str = ["bsub"]
-		
+
 		if notify:
 			bsub_str.extend(["-N"])
-		
+
 		bsub_str.extend(["-q", self.queue])
-		
+
 		if self.job_name != None:
 			bsub_str.extend(["-J", self.job_name])
-		
+
 		if self.group != None:
 			bsub_str.extend(['-g', self.group])
-		
+
 		if blocking != False:
 			bsub_str.extend(["-K"])
-		
+
 		global lsf_mem
 		if job_mem != None and lsf_mem != None:
 			self.job_mem = min(self.job_mem, lsf_mem)
 			bsub_str.extend(["-R rusage[mem=%d]" % self.job_mem])
-		
+
 		bsub_str.extend(["-R span[hosts=1]"])
-		
+
 		bsub_str.extend(["-oo", self.outfile])
 		bsub_str.extend(["-eo", self.errfile])
 		bsub_str.extend(["%s" % self.cmd_str])
-		
+
 		self.bsub_str = bsub_str
-		
+
 		#Handle if queue == "local"
 		if self.queue == "local":
 			local_str = [""]
 			local_str.extend([">", self.outfile])
 			local_str.extend(["2>", self.errfile])
-			
+
 			#TODO: Add self.cmd_str to bsub_str so command actually gets run.
 			self.bsub_str = local_str
 			self.bsub_str.insert(0,self.cmd_str)
 
 	def __repr__(self):
-		return "Instance of class LSF Job:\n\t%s\n\tSubmitted: %s\n\t Complete: %s\n" % (self.cmd_str,self.submit_flag,self.complete) + str(pp(self.__dict__))
-	
+		return "Instance of class LSF Job:\n\t%s\n\tSubmitted: %s\n\t Complete: %s\n" % (self.cmd_str,self.submit_flag,self.complete) + str(self.__dict__)
+
 	def __str__(self):
 		return " ".join(self.bsub_str)
 
 	def submit(self): # wait pend
 		if self.submit_flag == True:
-			print >>sys.stderr, "Job already submitted"
+			print("Job already submitted", file=sys.stderr)
 			return 0# what do you return here?
-		
+
 		self.submit_proc = subprocess.Popen(self.bsub_str,shell=False,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
-		
+
 		#Handle local jobs
 		if self.queue == "local":
 			self.submit_flag = True
 			self.status = 'RUN'
 			self.submit
 			self.jobID = self.submit_proc.pid
-			print >>sys.stderr, "Job running locally with pid %d" % self.jobID
+			print("Job running locally with pid %d" % self.jobID, file=sys.stderr)
 			return 0
-		
+
 		#Handle queued jobs
 		if self.submit_proc.wait() != 0:
 			raise LSFError("Could not submit to LSF. Error %d" % self.submit_proc.poll())
 		else:
 			self.submit_flag = True
 			self.status = 'SUBMITTED'
-			self.submit_status = self.submit_proc.stdout.read().rstrip() 
+			self.submit_status = self.submit_proc.stdout.read().rstrip()
 			self.getJobId()
 			#Wait until job switched from submitted to pend/run
 			while self.status in ['SUBMITTED'] :
 				try:
 					self.poll()
-				except Exception , e:
-					print >> sys.stderr,'Exception poll error: %s\n' %e
-					
-		print >>sys.stderr, self.submit_status
+				except Exception as e:
+					print('Exception poll error: %s\n' % e, file=sys.stderr)
+
+		print(self.submit_status, file=sys.stderr)
 		return self.submit_proc.wait()
-	
+
 	def poll(self):
 		"""This will poll using bjobs for the specific jobID for a given instance of LSFJob"""
 		if not self.submit_flag:
@@ -166,13 +167,13 @@ class LSFJob(object):
 				return
 			tmp = subprocess.Popen('bjobs -a -w %d' % self.jobID,shell=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
 			tmp_err = tmp.stderr.read().rstrip()
-			notfoundpat = re.compile("Job \<[0-9]+\> is not found")
+			notfoundpat = re.compile(r"Job \<[0-9]+\> is not found")
 			failedpat = "Failed in an LSF library call"
-				
+
 			#wait until the bjobs query returns  (not until the job itself is finished)
 			while tmp.wait() > 0:
 				if tmp_err.count(failedpat) > 0:
-					print >>sys.stderr, tmp_err
+					print(tmp_err, file=sys.stderr)
 					time.sleep(20)
 					tmp = subprocess.Popen('bjobs -w %d' % self.jobID,shell=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
 					tmp_err = tmp.stderr.read().rstrip()
@@ -187,9 +188,9 @@ class LSFJob(object):
 						self.complete = True
 						return self.status
 					else: # was never run
-						print >>sys.stderr, "waited, job did not run " + tmp_err
+						print("waited, job did not run " + tmp_err, file=sys.stderr)
 						return tmp_err
-				#else: job still exists, update its status	
+				#else: job still exists, update its status
 				tmp_lines = [x.rstrip() for x in tmp.stdout.readlines()]
 				keys,values = [x.split() for x in tmp_lines]
 				tmpDict = dict(zip(keys,values))
@@ -200,18 +201,18 @@ class LSFJob(object):
 				self.submit_host = tmpDict['FROM_HOST']
 				return self.status
 			else:
-				#Should not reach this line... CONSIDER erasing and doing while tmp.wait!=0 
+				#Should not reach this line... CONSIDER erasing and doing while tmp.wait!=0
 				raise LSFError("Problem with bjobs polling. Error %s" % tmp_err)
-	
+
 	def getJobId(self):
 		if self.submit_flag:
-			jobID_search = re.search("\<[0-9]+\>",self.submit_status)
+			jobID_search = re.search(r"\<[0-9]+\>",self.submit_status)
 			self.jobID = int(jobID_search.group().strip("><"))
 			return
 		else:
-			print "Job not yet submitted."
+			print("Job not yet submitted.")
 			return
-	
+
 	def kill(self):
 		#Added this to fix cases were kill fails because there is no job id
 		if self.status in ['NOT SUBMITTED'] or self.jobID== -999 :
@@ -228,29 +229,30 @@ class LSFJob(object):
 			self.complete = False
 			self.status = 'NOT SUBMITTED'
 		return
-	
+
 	def wait(self):
 		self.poll()
 		if not self.submit_flag:
-			print "Job not yet submitted"
+			print("Job not yet submitted")
 			return
 		while self.status in['SUBMITTED','PEND','RUN','SUSP']:
 			time.sleep(30)
 			self.poll()
 			if self.status in ['SUSP']:
-				print >> sys.stderr,'SUSPENDED : %d \n' % self.jobID 
+				print('SUSPENDED : %d \n' % self.jobID, file=sys.stderr)
 		self.status = 'DONE'
 		self.complete = True
 		return
-			
+
 
 ##############
 #Helper functions
 ##############
 def tmp_name(prefix):
+	import tempfile
 	tmp_root = "tmp/"
 	if os.path.exists(tmp_root):
 		pass
 	else:
 		os.mkdir(tmp_root)
-	return tmp_root + prefix + os.tmpnam().split('/')[-1]
+	return tmp_root + prefix + os.path.basename(tempfile.mktemp())

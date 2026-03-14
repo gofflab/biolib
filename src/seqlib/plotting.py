@@ -5,6 +5,7 @@ Created on Jul 13, 2010
 '''
 import os
 
+
 def chromatinAggPlots(basename):
     """
     Makes chromatin aggregate plots

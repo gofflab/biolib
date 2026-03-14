@@ -4,11 +4,11 @@ Created on Oct 27, 2009
 
 @author: lgoff
 '''
-import pysam
-import mySam
-from rpy import *
-import copy
+
 import intervallib
+import pysam
+from rpy import *
+
 
 class SamData:
     def __init__(self,name,file,description):
@@ -17,20 +17,20 @@ class SamData:
         self.description = description
         self.type = 'basic'
         self.open()
-    
+
     def __str__(self):
         return self.name
-    
+
     def open(self):
         """Returns a pysam handle to the .BAM file"""
         self.handle = pysam.Samfile(self.file,'rb')
-    
+
     def close(self):
         self.handle.close()
-    
+
     def samSort(self):
         pass
-    
+
     def samIndex(self):
         pass
 
@@ -112,16 +112,16 @@ def plotRegions(bamHandle,chrom,start,end):
                 tmp["-"][i] = 1 + tmp["-"].get(i,0)
     try: max_cov = max(tmp['+'].values()+tmp['-'].values())
     except ValueError: max_cov = 1
-    
+
     r.plot(tmp['+'].keys(),tmp['+'].values(),type="h",col = "blue", ylim=[-max_cov,max_cov], xlab = chrom+" position", ylab = "Align Reads", xlim=[start,end], main = "Coverage "+chrom+":"+str(start)+"-"+str(end))
     r.lines(tmp['-'].keys(),map(lambda x: -x,tmp['-'].values()),type="h",col="red")
     r.abline(h=0,col="grey")
-            
-            
+
+
 def plotChromProfile(bamFiles,chrom,start,end):
     """Not terribly flexible at this point, but will plot 'tracks' from a given chrom,start,end 
     position from a list of opened .BAM files"""
-    
+
     r.x11(width=6,height=10)
     r.par(mfrow=[len(bamFiles),1])
     for fname in bamFiles:
@@ -131,7 +131,7 @@ def plotChromProfile(bamFiles,chrom,start,end):
             pos.append(column.pos)
             n.append(column.n)
         r.plot(pos,n,type="h",xlab=chrom+" position",ylab="Aligned Reads",xlim=[start,end],ylim=[0,12],main=fname.name)
-        
+
 ###############
 #Functions for sam Reads
 ###############
@@ -151,7 +151,7 @@ def strandFlag(flag):
         return "-"
     else:
         return "*"
-    
+
 def samRead2Interval(samRead):
     strand = strandFlag(int(samRead.flag))
     return intervallib.Interval(samRead.qname,int(samRead.pos)+1,int(samRead.pos)+samRead.rlen+1,strand)
@@ -160,4 +160,3 @@ def samReads2Intervals(samReads,start='start',end='end',score='readcount',sample
     """samReads is an iterator object over a set of sam reads using the pysam 'fetch' call"""
     pass
 
-    

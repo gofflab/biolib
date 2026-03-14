@@ -1,2 +1,13 @@
 .DS*
 *.pyc
+__pycache__/
+*.egg-info/
+.eggs/
+dist/
+build/
+.pytest_cache/
+htmlcov/
+.coverage
+coverage.xml
+.ruff_cache/
+*.bak

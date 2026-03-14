@@ -6,10 +6,10 @@ Script to create gibson assembly fragments for ordering from a fasta file.
 @author: lgoff
 '''
 #Imports
-from RNASeq import sequencelib
-from RNASeq.misc import pp
-import getopt,sys,os
+import getopt
+import sys
 
+from RNASeq import sequencelib
 
 #Fixed attributes
 attF = "GGGGACAAGTTTGTACAAAAAAGCAGGCT" #Sequence to be added to the forward primer for Gateway (TM) cloning
@@ -36,11 +36,11 @@ class Usage(Exception):
 
 def gibson(fname,gateway=True,fragSize=500,overhangSize=20):
     res = {}
-    
+
     #Fasta file handle
     handle = open(fname,'r')
     iter = sequencelib.FastaIterator(handle)
-    
+
     #Iterate over records in input fasta file
     for i in iter:
         fragments = []
@@ -59,19 +59,19 @@ def gibson(fname,gateway=True,fragSize=500,overhangSize=20):
             fragments.append(fragSeq)
             curpos = curpos+fragSize-overhangSize
         res[i['name']]=fragments
-    
+
     return res
 
 def printGibson(fragDict,outHandle):
     for k in fragDict.keys():
-        print >>outHandle, "%s:" % k
+        print("%s:" % k, file=outHandle)
         blockCount = 0
         for fragment in fragDict[k]:
             blockCount += 1
-            print >>outHandle,"%s_block%d\t%s" % (k,blockCount,fragment)
-        print >>outHandle, "\n"
-    
-    
+            print("%s_block%d\t%s" % (k,blockCount,fragment), file=outHandle)
+        print("\n", file=outHandle)
+
+
 
 ##############
 # Main
@@ -89,7 +89,7 @@ def main(argv=None):
     try:
         try:
             opts, args = getopt.getopt(argv[1:], "hto:vs:gf:k", ["help", "output="])
-        except getopt.error, msg:
+        except getopt.error as msg:
             raise Usage(msg)
         # option processing
         for option, value in opts:
@@ -117,15 +117,15 @@ def main(argv=None):
         if outFile == None:
             outFile = fname.rstrip(".fa")+"_gibson.txt"
         outHandle = open(outFile,'w')
-        
+
         #Put actual function call here...
         fragDict = gibson(fname,gateway=gateway,fragSize=fragSize,overhangSize=overhangSize)
         #pp(fragDict)
         printGibson(fragDict,outHandle)
-        
-    except Usage, err:
-        print >> sys.stderr, sys.argv[0].split("/")[-1] + ": " + str(err.msg)
-        print >> sys.stderr, "\t for help use --help"
+
+    except Usage as err:
+        print(sys.argv[0].split("/")[-1] + ": " + str(err.msg), file=sys.stderr)
+        print("\t for help use --help", file=sys.stderr)
         sys.exit()
 
 if __name__ == "__main__":

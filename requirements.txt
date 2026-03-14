@@ -1,0 +1,20 @@
+# Core scientific stack
+numpy>=1.26,<3
+pandas>=2.0,<3
+
+# Numerical/statistical
+scipy>=1.12,<2
+
+# Bioinformatics
+pysam>=0.22,<0.24
+
+# R interface (optional — install with: pip install "biolib[r]")
+# Requires R to be installed. Used by: seqlib.JensenShannon, seqlib.Chip,
+# seqlib.continuousData, seqlib.mySam, qpcr.qpcrAnalysis
+# rpy2>=3.5,<4
+
+# Development
+pytest>=7.0,<9
+pytest-cov>=4.0,<7
+ruff>=0.4,<1
+pre-commit>=3.0,<4
