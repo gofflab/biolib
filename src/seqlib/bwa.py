@@ -11,7 +11,7 @@ BWA SAMSE:
      bwa samse /seq/compbio-hp/lgoff/genomes/hg18/hg18.fa test.sai test.fastq
 '''
 import os,copy
-from Alignment import *
+from .Alignment import *
 
 prefix = "/seq/compbio-hp/lgoff/genomes/hg18/hg18.fa"
 ref_index = prefix+".fai"
@@ -28,8 +28,8 @@ def SAMReader(fname):
     handle = open(fname,'r')
     for line in handle:
         aln = parseSAMString(line)
-        yield aln.toInterval()   
-    
+        yield aln.toInterval()
+
 def parseSAMString(samstring):
     tokens = samstring.rstrip().split("\t")
     readname = tokens[0]
@@ -49,7 +49,7 @@ def joinSAMIntervals(iter,start='start',end='end',offset=0):
     Returns a list of independent non-overlapping intervals for each strand overlapping by offset if set
     ***SAM file must first be sorted using 'samtools sort'***
     """
-    
+
     overlapping_plus = []
     overlapping_minus = []
     for interval in iter:
@@ -61,7 +61,7 @@ def joinSAMIntervals(iter,start='start',end='end',offset=0):
             continue
     res = {}
     for i in ("+","-"):
-        print i
+        print(i)
         if i =="+":
             intervals = overlapping_plus
         elif i =="-":
@@ -113,7 +113,7 @@ def samSort(files,queue='broad'):
     for fname in files:
         shortname = fname.rstrip("*.bam")+"_sorted"
         command = "samtools sort %s %s" % (fname,shortname)
-        print "Sorting file: %s" % fname
+        print("Sorting file: %s" % fname)
         os.system(command)
     return
 
@@ -125,10 +125,10 @@ def pileup2wig(fname,shortname,outDir=os.getcwd()+"/"):
     prePos = -1
     prePlus = 0
     preMinus = 0
-    
+
     plusHand = open(outDir+shortname+"_plus.wig",'w')
     minusHand = open(outDir+shortname+"_minus.wig",'w')
-    
+
     def wigHeader(shortname,strand):
         if strand=="+":
             color = '0,0,255'
@@ -136,29 +136,29 @@ def pileup2wig(fname,shortname,outDir=os.getcwd()+"/"):
         elif strand=="-":
             color = '255,0,0'
             sName = 'minus'
-        
+
         return 'track type=wiggle_0 name=%s_%s description=%s_%s color=%s' % (shortname,sName,shortname,sName,color)
-    
-    print >>plusHand, wigHeader(shortname,"+")
-    print >>minusHand, wigHeader(shortname, "-")
-    
+
+    print(wigHeader(shortname,"+"), file=plusHand)
+    print(wigHeader(shortname, "-"), file=minusHand)
+
     for line in handle:
         ref,pos,base,count,reads,quals = line.rstrip().split()
         if ref!=preRef:
             preRef = ref
-            print >>plusHand,"variableStep chrom=%s" % (ref)
-            print >>minusHand, "variableStep chrom=%s" % (ref)
+            print("variableStep chrom=%s" % (ref), file=plusHand)
+            print("variableStep chrom=%s" % (ref), file=minusHand)
         if reads.count(".")>0:
-            print >>plusHand, "%d\t%d" % (int(pos),reads.count("."))
+            print("%d\t%d" % (int(pos),reads.count(".")), file=plusHand)
         if reads.count(",")>0:
-            print >>minusHand, "%d\t%d" % (int(pos),reads.count(","))
-        
+            print("%d\t%d" % (int(pos),reads.count(",")), file=minusHand)
+
             continue
     plusHand.close()
     minusHand.close()
-      
-        
-    
+
+
+
 
 def getBitValue(n, p):
     '''

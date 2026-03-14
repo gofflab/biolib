@@ -1,7 +1,7 @@
 '''
 Created on May 13, 2010
 
-Normalizes and compares RIP vs Control (IgG or total RNA) to identify segments of transcripts that are 
+Normalizes and compares RIP vs Control (IgG or total RNA) to identify segments of transcripts that are
 preferrentially enriched in RIP
 
 @author: lgoff
@@ -9,8 +9,8 @@ preferrentially enriched in RIP
 ##################
 #Imports
 ##################
-import intervallib
-import seqstats
+from . import intervallib
+from . import seqstats
 
 
 ##################
@@ -19,26 +19,26 @@ import seqstats
 
 class RIPUnit(intervallib.Interval):
     """
-    Can be individual transcript or some basic unit being interrogated for differential peaks (ie. chromosome) 
+    Can be individual transcript or some basic unit being interrogated for differential peaks (ie. chromosome)
     Extends intervallib.Interval class
     """
     def __init__(self,interval):
         """Initiate from existing instance of Interval class only"""
         assert isinstance(interval,intervallib.Interval)
         intervallib.Interval.__init__(interval)
-        
+
     def scan(self):
         pass
-    
+
     def makebins(self,binSize):
         pass
-    
+
     def binBinom(self):
         pass
-    
+
     def binPois(self):
         pass
-    
+
     def fetchReads(self,bamHandle):
         pass
 
@@ -48,6 +48,6 @@ class RIPUnit(intervallib.Interval):
 #################
 def globalNorm(ripUnit,totReads):
     pass
-    
+
 def localNorm(ripUnitA,ripUnitB):
     pass

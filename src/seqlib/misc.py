@@ -1,5 +1,5 @@
 #!/usr/bin/python
-import sys,types,string
+import sys,string
 #############
 #pygr tools
 #############
@@ -11,7 +11,7 @@ class Annot:
         self.strand=strand
         self.start=start
         self.end=end
-        
+
 ##################
 #nuID implementation for python
 ###################
@@ -22,12 +22,12 @@ def mreplace(s,chararray=['A','C','G','T','U'],newarray=['0','1','2','3','3']):
 
 def seq2nuID(seq):
     """Converts a string DNA or RNA sequence into its corresponding 'nuID'"""
-    
-    """ 
+
+    """
         Default code includes "_" as char.  This conflicts with parsing for shrimp.  So for my specific instance,
         "_" has been replaced with "!"
     """
-    code = map(chr,range(65,91))+map(chr,range(97,123))+map(str,range(0,10))+map(str,("!","."))
+    code = [chr(x) for x in range(65,91)]+[chr(x) for x in range(97,123)]+[str(x) for x in range(0,10)]+[str(x) for x in ("!",".")]
     seq=seq.upper()
     num=mreplace(seq)
     if len(num)%3!=0:
@@ -53,12 +53,12 @@ def seq2nuID(seq):
     return id
 
 def nuID2seq(nuID):
-    """ 
+    """
         Default code includes "_" as char.  This conflicts with parsing for shrimp.  So for my specific instance,
         "_" has been replaced with "!"
     """
     import math
-    code = map(chr,range(65,91))+map(chr,range(97,123))+map(str,range(0,10))+map(str,("!","."))
+    code = [chr(x) for x in range(65,91)]+[chr(x) for x in range(97,123)]+[str(x) for x in range(0,10)]+[str(x) for x in ("!",".")]
     ind=range(1,len(code)+1)
     names=dict(zip(code,ind))
     numArray=[]
@@ -95,22 +95,20 @@ def sort_by_value(d):
     backitems.sort(reverse=True)
     return [ backitems[i][1] for i in range(0,len(backitems))]
 
-def sbv2(d,reverse=False):  
-    ''' proposed in PEP 265, using  the itemgetter '''  
+def sbv2(d,reverse=False):
+    ''' proposed in PEP 265, using  the itemgetter '''
     from operator import itemgetter
-    return sorted(d.iteritems(), key=itemgetter(1), reverse=True)  
+    return sorted(d.items(), key=itemgetter(1), reverse=True)
 
 def sortListofDicts(fieldname):
     """useful for sorting a list of dictionaries by a given key (fieldname)
     usage:
-    mylist.sort(sortListofDicts('start')  #will sort a list of intervals by i['start']
+    mylist.sort(key=sortListofDicts('start'))  #will sort a list of intervals by i['start']
     """
-    def compare_two_dicts (a,b):
-        return cmp(a[fieldname],b[fieldname])
-    return compare_two_dicts
+    return lambda x: x[fieldname]
 
 def sort_dict(d,reverse=True):
-    return sorted(d.iteritems(), key=lambda (k,v): (v,k), reverse=reverse)
+    return sorted(d.items(), key=lambda item: (item[1], item[0]), reverse=reverse)
 
 ########
 #
@@ -140,15 +138,15 @@ def pretty_print(f, d, level=-1, maxw=0, maxh=0, gap="", first_gap='', last_gap=
     # gap is the gap to include before every element of a list/dic/tuple
     # first_gap is the opening gap before the opening bracket, parens or curly braces
     # first_gap is the closing gap before the closing bracket, parens or curly braces
-    
+
     if level == 0:
-        if type(d) != types.StringType: d = `d`
+        if not isinstance(d, str): d = repr(d)
 
         if maxw and len(d) > maxw:
             final = ifab(maxw > 20, 10, maxw/2)
             f.write(first_gap+d[:maxw-final]+'...'+d[-final:]+' (%s chars)\n' % len(d))
         else: f.write(first_gap+d+'\n')
-    elif type(d) == types.ListType:
+    elif isinstance(d, list):
         if not d:
             f.write(first_gap+"[]\n")
             return
@@ -163,7 +161,7 @@ def pretty_print(f, d, level=-1, maxw=0, maxh=0, gap="", first_gap='', last_gap=
                     f.write(gap+' -> ... (%s in list)\n'%len(d))
                     break
         f.write(last_gap+"]\n")
-    elif type(d) == types.TupleType:
+    elif isinstance(d, tuple):
         if not d:
             f.write(first_gap+"()\n")
             return
@@ -184,18 +182,17 @@ def pretty_print(f, d, level=-1, maxw=0, maxh=0, gap="", first_gap='', last_gap=
                     f.write(gap+' => ... (%s in tuple)\n'%len(d))
                     break
         f.write(last_gap+")\n")
-    elif type(d) == types.DictType:
+    elif isinstance(d, dict):
         if not d:
             f.write(first_gap+"{}\n")
             return
         # recurse on dictionaries
         f.write(first_gap+"{\n")
-        keys = d.keys()
-        keys.sort()
-        key_strings = map(lambda k: ifab(type(k)==types.StringType, k, `k`), keys)
+        keys = sorted(d.keys())
+        key_strings = [ifab(isinstance(k, str), k, repr(k)) for k in keys]
         maxlen = max(map(len, key_strings))
         h = 0
-        for k,key_string in map(None, keys, key_strings):
+        for k,key_string in zip(keys, key_strings):
             key_string = sfill(key_string,maxlen,'.')
             blank_string = ' '*len(key_string)
             pretty_print(f, d[k],
@@ -210,31 +207,31 @@ def pretty_print(f, d, level=-1, maxw=0, maxh=0, gap="", first_gap='', last_gap=
                 if h >= maxh and maxh<len(keys):
                     remaining_keys = []
                     for k in keys[h:]:
-                        if type(k) == types.TupleType:
-                            remaining_keys.append(`k`)
+                        if isinstance(k, tuple):
+                            remaining_keys.append(repr(k))
                         else:
                             remaining_keys.append('%s'%k)
-                    remaining_keys = string.join(remaining_keys,',')
+                    remaining_keys = ','.join(remaining_keys)
                     #f.write(gap+'  %s (%s keys)\n'%(remaining_keys, len(keys)))
                     pretty_print(f, '  %s (%s keys)'%(remaining_keys, len(keys)),0,maxw,0,
                                  gap,gap,'')
                     break
-            
+
             #gap+' '*(len(key_string)+3), '', gap+' '*(len(key_string)+5))
         f.write(last_gap+"}\n")
-    elif type(d) == types.InstanceType:
+    elif hasattr(d, '__dict__') and not isinstance(d, (list, tuple, dict, str, int, float, bool)):
         fields = dir(d)
-        
+
         if not fields:
             f.write(first_gap+"*EmptyClass*\n")
             return
         # recurse on classes
         f.write(first_gap+"*ClassInstance %s\n"%d)
         fields.sort()
-        key_strings = map(lambda k: ifab(type(k)==types.StringType, k, `k`), fields)
+        key_strings = [ifab(isinstance(k, str), k, repr(k)) for k in fields]
         maxlen = max(map(len, key_strings))
         h = 0
-        for k,key_string in map(None, fields, key_strings):
+        for k,key_string in zip(fields, key_strings):
             key_string = sfill(key_string,maxlen,'.')
             blank_string = ' '*len(key_string)
             pretty_print(f, eval('d.'+k),
@@ -249,11 +246,11 @@ def pretty_print(f, d, level=-1, maxw=0, maxh=0, gap="", first_gap='', last_gap=
                 if h >= maxh and maxh<len(keys):
                     remaining_keys = []
                     for k in keys[h:]:
-                        if type(k) == type(()):
-                            remaining_keys.append(`k`)
+                        if isinstance(k, tuple):
+                            remaining_keys.append(repr(k))
                         else:
                             remaining_keys.append('%s'%k)
-                    remaining_keys = string.join(remaining_keys,',')
+                    remaining_keys = ','.join(remaining_keys)
                     #f.write(gap+'  %s (%s keys)\n'%(remaining_keys, len(keys)))
                     pretty_print(f,
                                  '  %s (%s keys)'%(remaining_keys, len(keys)),
@@ -264,7 +261,7 @@ def pretty_print(f, d, level=-1, maxw=0, maxh=0, gap="", first_gap='', last_gap=
                                  gap,
                                  '')
                     break
-            
+
             #gap+' '*(len(key_string)+3), '', gap+' '*(len(key_string)+5))
         f.write(last_gap+"*\n")
     elif type(d) == type(""):
@@ -276,15 +273,15 @@ def pretty_print(f, d, level=-1, maxw=0, maxh=0, gap="", first_gap='', last_gap=
             f.write(first_gap+d+'\n')
     else:
         # string conversion of all other types
-        if maxw and len(`d`)>maxw:
+        if maxw and len(repr(d))>maxw:
             final = ifab(maxw > 20, 10, maxw/2)
-            f.write(first_gap+`d`[:maxw-final]+'..'+`d`[-final:]+' (%s)\n' % len(`d`))
+            f.write(first_gap+repr(d)[:maxw-final]+'..'+repr(d)[-final:]+' (%s)\n' % len(repr(d)))
         else:
-            f.write(first_gap+`d`+'\n')
+            f.write(first_gap+repr(d)+'\n')
 
 def pp(d,level=-1,maxw=0,maxh=0,parsable=0):
     """ wrapper around pretty_print that prints to stdout"""
-    if not parsable: 
+    if not parsable:
         pretty_print(sys.stdout, d, level, maxw, maxh, '', '', '')
     else:
         import pprint
@@ -366,7 +363,7 @@ def order(x, NoneIsLast = True, decreasing = False):
     if NoneIsLast == None:
         NoneIsLast = True
         omitNone = True
-        
+
     n  = len(x)
     ix = range(n)
     if None not in x:
@@ -382,7 +379,7 @@ def order(x, NoneIsLast = True, decreasing = False):
                 return elem is None, elem
         ix = range(n)
         ix.sort(key=key, reverse=decreasing)
-            
+
     if omitNone:
         n = len(x)
         for i in range(n-1, -1, -1):
@@ -412,7 +409,7 @@ def rank(x, NoneIsLast=True, decreasing = False, ties = "first"):
         R[O[i]] = i
     if ties == "first" or ties not in ["first", "average", "min", "max", "random"]:
         return R
-        
+
     blocks     = []
     isnewblock = True
     newblock   = []
@@ -438,15 +435,15 @@ def rank(x, NoneIsLast=True, decreasing = False, ties = "first"):
                 s += j
             s /= float(len(block))
             for j in block:
-                R[O[j]] = s                
+                R[O[j]] = s
         elif ties == "min":
             s = min(block)
             for j in block:
-                R[O[j]] = s                
+                R[O[j]] = s
         elif ties == "max":
             s =max(block)
             for j in block:
-                R[O[j]] = s                
+                R[O[j]] = s
         elif ties == "random":
             s = sample([O[i] for i in block], len(block))
             for i,j in enumerate(block):
@@ -458,9 +455,9 @@ def rank(x, NoneIsLast=True, decreasing = False, ties = "first"):
         R = [ R[j] for j in range(n) if x[j] != None]
     return R
 
-def uniqify(seq): 
-    # Not order preserving 
-    keys = {} 
-    for e in seq: 
-        keys[e] = 1 
-    return keys.keys()
+def uniqify(seq):
+    # Not order preserving
+    keys = {}
+    for e in seq:
+        keys[e] = 1
+    return list(keys.keys())

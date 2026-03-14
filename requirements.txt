@@ -1,0 +1,13 @@
+# Core scientific stack
+numpy>=1.26
+scipy>=1.12
+
+# Bioinformatics
+pysam>=0.22
+
+# R interface (optional - required for enrichment analysis and some plotting)
+rpy2>=3.5
+
+# Development
+pytest>=7.0
+pytest-cov>=4.0

@@ -1,7 +1,7 @@
 '''
 Created on Aug 31, 2010
 
-All of this is very fragile and is 
+All of this is very fragile and is
 absolutely dependent on a unique geneId and unique transcriptId for any records...
 
 @author: lgoff
@@ -9,9 +9,9 @@ absolutely dependent on a unique geneId and unique transcriptId for any records.
 ###########
 #Imports
 ###########
-import intervallib
+from . import intervallib
 import sys
-from misc import uniqify,pp
+from .misc import uniqify,pp
 #import genomelib
 
 #######################
@@ -28,10 +28,10 @@ class Error(Exception):
 class ParsingError(Error):
     """
     Exception raised for errors in the input.
-    
+
     Attributes:
         message -- explanation of the error
-    """       
+    """
     def __init__(self, message):
         self.message = message
 
@@ -43,47 +43,48 @@ class GTF_Entry:
     '''
     Holds a row's worth of GTF information.
     '''
-    
+
     def __init__(self):
         '''
         Constructor
         '''
         self.contig = "."
         self.source = "."
-        self.feature = "."   
+        self.feature = "."
         self.frame = "."
         self.start = 0
         self.end = 0
         self.score = "."
         self.strand = "."
         self.attributes = {}
-    
-    def __cmp__(self,b):
-        mid1 = (self.start+self.end)/2
-        mid2 = (b.start+b.end)/2
-        return cmp(mid1,mid2)
-    
+
+    def __lt__(self, b):
+        return (self.start + self.end) // 2 < (b.start + b.end) // 2
+
+    def __eq__(self, b):
+        return (self.start + self.end) // 2 == (b.start + b.end) // 2
+
     def __repr__(self):
         return self.attributes['transcript_id']+":"+self.feature
-    
+
     def addGTF_Entry(self,gtf_entry):
         self.contig = gtf_entry.contig
         self.source = gtf_entry.source
-        self.feature = gtf_entry.feature   
+        self.feature = gtf_entry.feature
         self.frame = gtf_entry.frame
         self.start = int(gtf_entry.start)
         self.end = int(gtf_entry.end)
         self.score = gtf_entry.score
         self.strand = gtf_entry.strand
         self.attributes = gtf_entry.attributes
-    
+
     def read(self,line):
         """
         read gff entry from line.
         <seqname> <source> <feature> <start> <end> <score> <strand> <frame> [attributes] [comments]
         """
         data = line.rstrip().split("\t")
-     
+
         try:
             (self.contig, self.source, self.feature,
              self.start, self.end, self.score, self.strand,
@@ -95,7 +96,7 @@ class GTF_Entry:
         (self.start, self.end) = map(int, (self.start, self.end))
         try:
             self.score = float(self.score)
-        except: 
+        except:
             pass
         #TODO: This may only be necessary when I convert to an Interval object
         #self.start -= 1
@@ -109,11 +110,11 @@ class GTF_Entry:
         # remove comments
         myAttributes = myAttributes.split( "#" )[0]
         # separate into fields
-        fields = map( lambda x: x.strip(), myAttributes.split(";")[:-1])
+        fields = [x.strip() for x in myAttributes.split(";")[:-1]]
         self.attributes = {}
-             
+
         for f in fields:
-            d = map( lambda x: x.strip(), f.split(" "))
+            d = [x.strip() for x in f.split(" ")]
             n,v = d[0], d[1]
             if len(d) > 2: v = d[1:]
             if v[0] == '"' and v[-1] == '"':
@@ -128,7 +129,7 @@ class GTF_Entry:
                 except TypeError:
                     pass
             self.attributes[n] = v
-            
+
     def toGTF(self):
         tmp = '%s\t%s\t%s\t%d\t%d\t%s\t%s\t%s\t' % (self.contig,self.source,self.feature,self.start,self.end,str(self.score),self.strand,self.frame)
         #Print 'gene_id' and 'transcript_id' as first and second attributes (required by GTF spec.)
@@ -138,12 +139,12 @@ class GTF_Entry:
             except:
                 pass
         #Print remainder of attributes in any order.
-        for k,v in self.attributes.iteritems():
+        for k,v in self.attributes.items():
             if k not in ['gene_id','transcript_id']:
                 tmp += '%s "%s"; ' % (k,str(v))
         tmp += "\n"
         return tmp
-    
+
 ############
 #GTFTranscriptContainer
 ############
@@ -159,15 +160,16 @@ class GTFTranscriptContainer(object):
         self.strand = None
         self.transcriptId = ''
         self.geneId = ''
-   
+
     def __len__(self):
         return self.end-self.start+1
-    
-    def __cmp__(self,b):
-        mid1 = (self.start+self.end)/2
-        mid2 = (b.start+b.end)/2
-        return cmp(mid1,mid2)
-    
+
+    def __lt__(self, b):
+        return (self.start + self.end) // 2 < (b.start + b.end) // 2
+
+    def __eq__(self, b):
+        return (self.start + self.end) // 2 == (b.start + b.end) // 2
+
     def addFeature(self,gtf_entry):
         if self.transcriptId == '':
             self.contig = gtf_entry.contig
@@ -178,11 +180,11 @@ class GTFTranscriptContainer(object):
             self.geneId = gtf_entry.attributes['gene_id']
         self.features.append(gtf_entry)
         self.update()
-    
+
     def update(self):
         self.start = min([x.start for x in self.features])
         self.end = max([x.end for x in self.features])
-    
+
     def toSplicedInterval(self):
         transcripts = uniqify([x.attributes['transcript_id'] for x in self.features])
         if len(transcripts) > 1:
@@ -193,8 +195,8 @@ class GTFTranscriptContainer(object):
             transStart = min([x.start-1 for x in exons])
             myInt = intervallib.SplicedInterval(self.contig,transStart,max([x.end for x in exons]),self.strand,",".join([str(x.end-x.start+1) for x in exons]),",".join([str(x.start-1-transStart) for x in exons]),name=t)
             return myInt
-                                
-        
+
+
 ############
 #Gene Container
 ############
@@ -205,7 +207,7 @@ class GTFGeneContainer(object):
     Assumptions:
         - gene_id field is unique to a gene locus (ie. not shared amongst gene duplicates
         - There is no guarantee that the order of rows is preserved during reading in and returning GTF
-         
+
     '''
 
     def __init__(self):
@@ -220,15 +222,16 @@ class GTFGeneContainer(object):
         self.strand = None
         self.geneId = ''
         self.sequence = ''
-   
+
     def __len__(self):
         return self.end-self.start+1
-    
-    def __cmp__(self,b):
-        mid1 = (self.start+self.end)/2
-        mid2 = (b.start+b.end)/2
-        return cmp(mid1,mid2)
-    
+
+    def __lt__(self, b):
+        return (self.start + self.end) // 2 < (b.start + b.end) // 2
+
+    def __eq__(self, b):
+        return (self.start + self.end) // 2 == (b.start + b.end) // 2
+
     def addFeature(self,gtf_entry):
         if self.geneId == '':
             self.contig = gtf_entry.contig
@@ -237,7 +240,7 @@ class GTFGeneContainer(object):
         assert self.geneId == gtf_entry.attributes['gene_id']
         self.features.append(gtf_entry)
         self.update()
-    
+
     def addGTFTranscript(self,gtf_transcript):
         if self.geneId == '':
             self.contig = gtf_transcript.contig
@@ -254,53 +257,53 @@ class GTFGeneContainer(object):
     def transcriptUpdate(self):
         self.start = min([x.start for x in self.transcripts])
         self.end = max([x.end for x in self.transcripts])
-        
-        
+
+
     def propogateLincName(self,lincName):
         for feat in self.features:
             feat.attributes['linc_name'] = lincName
             if not 'gene_name' in feat.attributes:
                 feat.attributes['gene_name'] = lincName
-    
+
     def addAttribute(self,key,value):
         for feat in self.features:
             feat.attributes[key] = value
-    
+
     def geneToBed(self):
         """This does not work yet"""
         raise Error ("This method does not work yet")
         return "%s\t%d\t%d\t%s\t0\t%s\t%s\t%s" % (self.contig,self.start,self.end,self.attributes['transcript_id'],self.strand,",".join(self.exonLengths),",".join(self.exonOffsets))
-    
+
     def transcriptsToBed(self):
         pass
-    
+
     def getGTF(self):
         tmp = ''
         for feat in self.features:
             tmp += feat.toGTF()
         return tmp
-    
+
     def toInterval(self):
         return intervallib.Interval(self.contig,self.start-1,self.end,self.strand,name=self.geneId)
-    
+
     # def fetchSequence(self,genome='hg19',connection=None):
     #     if connection == None:
     #         connection = genomelib.pygrConnect(genome)
-    #     try:    
+    #     try:
     #         seq = connection[self.contig][self.start-1:self.end]
     #     except KeyError:
     #         seq = ''
     #     self.sequence=str(seq)
     #     return
-        
+
 
 #############
 #lineIterator
 #############
 def lineIterator(gtfHandle):
-    while 1:
+    while True:
         line = gtfHandle.readline()
-        if not line: raise StopIteration
+        if not line: return
         if line.startswith("#"):continue
         gtf_entry = GTF_Entry()
         gtf_entry.read(line)
@@ -314,7 +317,7 @@ def GTFGeneIterator(gtfFile,verbose = False):
         sys.stderr.write("Parsing GTF lines into genes...\n")
     for i in iter:
         res.setdefault(i.attributes['gene_id'],GTFGeneContainer())
-        res[i.attributes['gene_id']].addFeature(i)  
+        res[i.attributes['gene_id']].addFeature(i)
     for k in res.keys():
         yield res[k]
 
@@ -326,7 +329,7 @@ def GTFGeneIterator2(gtfFile,verbose=False):
         res[i.geneId].addGTFTranscript(i)
     for k in res.keys():
         yield res[k]
-    
+
 def GTFTranscriptIterator(gtfFile,verbose = False):
     handle = open(gtfFile,'r')
     iter = lineIterator(handle)
@@ -338,7 +341,7 @@ def GTFTranscriptIterator(gtfFile,verbose = False):
         res[i.attributes['transcript_id']].addFeature(i)
     for k in res.keys():
         yield res[k]
-    
+
 def GTFAttributeDict(gtfFile,idField='gene_id'):
     """Returns a dictionary of attributes for each unique gene_id"""
     handle = open(gtfFile)
@@ -352,7 +355,7 @@ def GTFAttributeDict(gtfFile,idField='gene_id'):
         values = [ x.strip().split(" ")[1].strip('"') for x in attributes]
         myDict = dict(zip(attrs,values))
         res.setdefault(myDict[idField],{})
-        for k,v in myDict.iteritems():
+        for k,v in myDict.items():
             res[myDict[idField]].setdefault(k,set([])).add(v)
     return res
 
@@ -370,22 +373,22 @@ def GTFAttributeTable(gtfFile,outfile,idField='gene_id'):
         values = [ x.strip().split(" ")[1].strip('"') for x in attributes]
         myDict = dict(zip(attrs,values))
         res.setdefault(myDict[idField],{})
-        for k,v in myDict.iteritems():
+        for k,v in myDict.items():
             res[myDict[idField]].setdefault(k,set([])).add(v)
-    
+
     #Print output to outHandle
     #Header
-    print >>outHandle, "%s\t%s" % (idField,"\t".join([str(x) for x in fields]))
-    
+    print("%s\t%s" % (idField,"\t".join([str(x) for x in fields])), file=outHandle)
+
     for key in res.keys():
         outString = '%s\t' % key
         for field in fields:
             try:
-                outString += ",".join(res[key][field]) + "\t" 
+                outString += ",".join(res[key][field]) + "\t"
             except KeyError:
                 outString += "-\t"
         outString.rstrip("\t")
-        print >>outHandle, outString  
+        print(outString, file=outHandle)
     return
 
 def test():
@@ -398,5 +401,5 @@ for i in iter:
     """
     pass
 
-        
-        
+
+

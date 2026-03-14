@@ -19,7 +19,7 @@ bowtie -C -t -S -n 2 -k 1 -p 4 --best /seq/compbio-hp/lgoff/genomes/hg18/bowtie/
 ############
 #Imports
 ############
-import solid
+from . import solid
 import sys,os
 ############
 #Constants
@@ -39,7 +39,7 @@ def prepBowtie(csfile,qualfile,shortname,basedir,split=100000,readsdir="fastq/",
     #Make .fastq files
     sys.stderr.write("Making .fastq files...\n")
     solid.makeFastq(csfile,qualfile,shortname,outdir=readsdir,split=split)
-    
+
     #Make resultsdir
     if os.access(resultsdir, os.F_OK) is False:
         os.mkdir(resultsdir)
@@ -50,8 +50,5 @@ def runBowtie(queue="broad",cwd=os.getcwd(),outDir = "../results/"):
     for file in files:
         if file.endswith(".fastq"):
             basename = file.rstrip(".fastq")
-            call = """bsub -q %s -P compbiofolk -o /dev/null -N "bowtie -C -t -S -n 2 -k 1 --best %s %s >%s%s.sam 2>%s%s.err" """ % (queue, hg18_bowtieIndex,file, outDir, basename, outDir, basename)  
+            call = """bsub -q %s -P compbiofolk -o /dev/null -N "bowtie -C -t -S -n 2 -k 1 --best %s %s >%s%s.sam 2>%s%s.err" """ % (queue, hg18_bowtieIndex,file, outDir, basename, outDir, basename)
             os.system(call)
-            
-    
-    

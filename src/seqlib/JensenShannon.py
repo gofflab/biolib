@@ -28,7 +28,7 @@ def js_div_matrix(a):
 def make_probs(a):
     sums = sum(a,1)
     res = zeros(a.shape)
-    for i in xrange(a.shape[0]):
+    for i in range(a.shape[0]):
         res[i,:]=a[i,:]/sums[i]
     return res
 
@@ -56,7 +56,7 @@ if __name__ == "__main__":
     #a[178,2] = 0.0
     #a[178,11] = 0.0
     #a = a[:2000,:]
-    
+
 #    r.r.pdf('isoform_row_JS.pdf')
     #Rows
 #    rowMat = make_probs(a)
@@ -67,26 +67,26 @@ if __name__ == "__main__":
 #    rowDendro = r.r['as.dendrogram'](rowHclust)
 #    r.r.plot(rowHclust,main='',xlab='',ylab='JS-distance')
 #   r.r['dev.off']()
-    
-    
+
+
     r.r.pdf('isoform_column_JS.pdf')
     #Columns
     #colMat = log(a[sum(a,1)>0,]+1).transpose()
     colMat = a[sum(a,1)>0,].transpose()
     #colMat = a.transpose()
     colMat = make_probs(colMat)
-    print colMat[1:5,1:5]
+    print(colMat[1:5,1:5])
     colJS = js_div_matrix(colMat)
-    print colJS
+    print(colJS)
     colJS_dist = sqrt(colJS)
-    
+
     colDist = r.r['as.dist'](colJS_dist)
     colHclust = r.r.hclust(colDist)
     colHclust[3] = colLabs
     colDendro = r.r['as.dendrogram'](colHclust)
     r.r.plot(colHclust,main="JS Distance",xlab="",sub="",ylab="JS-distance on FPKM")
 
-#    
+#
 #    #colMat = a[sum(a,1)>0,].transpose()
 #    #coldist = r.r.dist(r.r.log2(colMat+0.001))
 #    coldist = r.r.dist(colMat)
@@ -95,8 +95,9 @@ if __name__ == "__main__":
 #    colDendro = r.r['as.dendrogram'](colHclust)
 #
 #    r.r.plot(colHclust,main="Euclidean",sub="",xlab="",ylab="Euclidean-distance on log2 FPKM")
-#    
-    
+#
+
+
     colcor = r.r.cor(colMat.transpose())
     #print colcor
     colcor = 1-(array(colcor)**2)
@@ -108,5 +109,5 @@ if __name__ == "__main__":
     #print '%s took %0.3f ms' % (js_div_matrix.func_name, (t2-t1)*1000.0)
     r.r.plot(colHclust,main="Pearson",sub="",xlab="",ylab="Pearson-distance on FPKM")
     #heatmap
-    
+
     r.r['dev.off']()

@@ -18,12 +18,12 @@ def makePWM(fastqFile,readLen,freq=True):
            'T':np.zeros(readLen),
            'Total':np.zeros(readLen)
            }
-    
-    
+
+
     #Iterate over fastq records
     iter=FastqIterator(fastqFile)
     for i in iter:
-        for j in xrange(0,len(i['sequence'])):
+        for j in range(0,len(i['sequence'])):
             try:
                 pwm[i['sequence'][j]][j] += 1
                 pwm['Total'][j] += 1
@@ -45,17 +45,17 @@ def FastqIterator(fastqFile):
         if line == "": return
         if line [0] == "@":
             break
-    
+
     #Begin walk through csfasta records
     while True:
         if not line: break
-        if line[0] <> "@":
+        if line[0] != "@":
             raise ValueError("Records in csfastq files should start with '@'")
         name = line[1:].rstrip()
         line = handle.readline()
         sequence = line.rstrip()
         line = handle.readline()
-        if line[0] <> "+":
+        if line[0] != "+":
             raise ValueError("Fastq file does not appear to be formatted correctly")
         line = handle.readline()
         quals = line.rstrip()

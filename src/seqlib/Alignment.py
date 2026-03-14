@@ -3,8 +3,8 @@ Created on Jun 30, 2009
 
 @author: lgoff
 '''
-from intervallib import *
-import misc
+from .intervallib import *
+from . import misc
 
 class Alignment(object):
     """
@@ -20,33 +20,36 @@ class Alignment(object):
         self.score = float(score)
         self.readsequence = readsequence
         self.readcount = readcount
-    
-    def __cmp__(self,b):
-        return -cmp(self.score,b.score)    
-    
+
+    def __lt__(self, b):
+        return self.score > b.score  # reversed because original was -cmp(self.score, b.score)
+
+    def __eq__(self, b):
+        return self.score == b.score
+
     def __str__(self):
         return "%s:%s:%d:%d" % (self.readname,self.chr,self.start,self.end)
-    
+
     def __repr__(self):
         return "%s:%s:%d:%d" % (self.readname,self.chr,self.start,self.end)
-    
+
     def __len__(self):
         return self.end-self.start+1
-    
+
     def isPlus(self):
         if self.strand=="+":
             return True
         else:
             return False
-        
+
     def isMinus(self):
         if self.strand=="-":
             return True
         else:
             return False
-    
+
     def toInterval(self):
         return Interval(self.chr,self.start,self.end,self.strand,self.score,self.readcount,name=self.readname)
-    
+
     def toBed(self):
         return ("%s\t%d\t%d\t%s\t%d\t%s\n" % (self.chr,self.start,self.end,misc.seq2nuID(self.readsequence),self.readcount,self.strand))
