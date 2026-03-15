@@ -90,6 +90,25 @@ class GFF3Row(object):
 
 
 def read_gff3(filename, genome):
+    """Reads a GFF3 annotation file and builds pygr AnnotationDB objects.
+
+    Parses a GFF3 file, groups features by type, and creates one pygr
+    AnnotationDB per feature type, each associated with the provided genome
+    sequence database.  Comment lines (starting with '#') are skipped.
+    Features lacking a type or gene_id attribute are also skipped.
+
+    Args:
+        filename: Path to a GFF3-format annotation file.
+        genome: A pygr sequence database object (e.g. a worldbase genome)
+            used to associate annotation slices with genomic sequence.
+
+    Returns:
+        A dictionary mapping feature type strings to pygr AnnotationDB
+        objects.
+
+    Raises:
+        ImportError: If the pygr library is not installed.
+    """
     if not _PYGR_AVAILABLE:
         raise ImportError("pygr is required for read_gff3 but is not installed.")
     d = {}  # for different types of sliceDBs
