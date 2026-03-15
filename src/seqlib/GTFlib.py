@@ -1,11 +1,16 @@
-'''
-Created on Aug 31, 2010
+"""Parsing and data structures for GTF (Gene Transfer Format) files.
 
-All of this is very fragile and is
-absolutely dependent on a unique geneId and unique transcriptId for any records...
+All of this is very fragile and is absolutely dependent on a unique geneId
+and unique transcriptId for any records.
 
-@author: lgoff
-'''
+Provides GTF_Entry, GTFTranscriptContainer, and GTFGeneContainer classes for
+holding GTF data, along with iterator functions for streaming over transcripts
+and genes, and utility functions for building attribute dictionaries and tables.
+
+Originally created on Aug 31, 2010.
+
+Author: lgoff
+"""
 ###########
 #Imports
 ###########
@@ -20,8 +25,13 @@ from .misc import uniqify
 #Error Handling
 #######################
 class Error(Exception):
-    """Base class for exceptions in this module."""
+    """Base class for exceptions in this module.
+
+    Provides a message property with getter/setter so subclasses can store
+    a human-readable error description.
+    """
     def __str__(self):
+        """Return the string representation of the error message."""
         return str(self.message)
     def _get_message(self, message): return self._message
     def _set_message(self, message): self._message = message
@@ -42,14 +52,22 @@ class ParsingError(Error):
 #########################
 
 class GTF_Entry:
-    '''
-    Holds a row's worth of GTF information.
-    '''
+    """Holds a single row's worth of GTF/GFF information.
+
+    Attributes:
+        contig: Sequence name / chromosome.
+        source: Annotation source name.
+        feature: Feature type (e.g. "exon", "CDS", "transcript").
+        frame: Reading frame (".","0","1","2").
+        start: 1-based start coordinate (integer).
+        end: 1-based end coordinate (integer).
+        score: Score value (float or ".").
+        strand: Strand ("+" or "-" or ".").
+        attributes: Dictionary of parsed key-value attribute pairs.
+    """
 
     def __init__(self):
-        '''
-        Constructor
-        '''
+        """Construct a GTF_Entry with default empty/sentinel field values."""
         self.contig = "."
         self.source = "."
         self.feature = "."
@@ -61,15 +79,23 @@ class GTF_Entry:
         self.attributes = {}
 
     def __lt__(self, b):
+        """Compare GTF entries by midpoint coordinate."""
         return (self.start + self.end) // 2 < (b.start + b.end) // 2
 
     def __eq__(self, b):
+        """Return True if two GTF entries share the same midpoint coordinate."""
         return (self.start + self.end) // 2 == (b.start + b.end) // 2
 
     def __repr__(self):
+        """Return a transcript_id:feature string representation."""
         return self.attributes['transcript_id']+":"+self.feature
 
     def addGTF_Entry(self,gtf_entry):
+        """Copy all fields from another GTF_Entry into self.
+
+        Args:
+            gtf_entry: A GTF_Entry instance whose fields will be copied.
+        """
         self.contig = gtf_entry.contig
         self.source = gtf_entry.source
         self.feature = gtf_entry.feature
@@ -133,6 +159,14 @@ class GTF_Entry:
             self.attributes[n] = v
 
     def toGTF(self):
+        """Serialize this entry back to a GTF-formatted string.
+
+        Writes gene_id and transcript_id first (as required by the GTF spec),
+        then all remaining attributes in arbitrary order.
+
+        Returns:
+            A GTF-formatted line string ending with a newline.
+        """
         tmp = '%s\t%s\t%s\t%d\t%d\t%s\t%s\t%s\t' % (self.contig,self.source,self.feature,self.start,self.end,str(self.score),self.strand,self.frame)
         #Print 'gene_id' and 'transcript_id' as first and second attributes (required by GTF spec.)
         for attr in ['gene_id','transcript_id']:
@@ -151,10 +185,20 @@ class GTF_Entry:
 #GTFTranscriptContainer
 ############
 class GTFTranscriptContainer(object):
+    """Container grouping all GTF_Entry instances sharing a transcript_id.
+
+    Attributes:
+        features: List of GTF_Entry objects belonging to this transcript.
+        start: Minimum start coordinate across all features.
+        end: Maximum end coordinate across all features.
+        contig: Chromosome/contig name.
+        strand: Strand orientation.
+        transcriptId: transcript_id attribute value.
+        geneId: gene_id attribute value.
+    """
+
     def __init__(self):
-        '''
-        Constructor
-        '''
+        """Construct an empty GTFTranscriptContainer with sentinel values."""
         self.features = []
         self.start = -1
         self.end = -1
@@ -164,15 +208,30 @@ class GTFTranscriptContainer(object):
         self.geneId = ''
 
     def __len__(self):
+        """Return the genomic span of the transcript (end - start + 1)."""
         return self.end-self.start+1
 
     def __lt__(self, b):
+        """Compare transcript containers by midpoint coordinate."""
         return (self.start + self.end) // 2 < (b.start + b.end) // 2
 
     def __eq__(self, b):
+        """Return True if two transcript containers share the same midpoint."""
         return (self.start + self.end) // 2 == (b.start + b.end) // 2
 
     def addFeature(self,gtf_entry):
+        """Add a GTF_Entry to this transcript container.
+
+        Initialises contig, strand, and transcriptId from the first feature
+        added. Asserts that subsequent features share the same transcript_id.
+        Updates self.start and self.end to span all features.
+
+        Args:
+            gtf_entry: A GTF_Entry instance to add.
+
+        Raises:
+            AssertionError: If gtf_entry has a different transcript_id.
+        """
         if self.transcriptId == '':
             self.contig = gtf_entry.contig
             self.strand = gtf_entry.strand
@@ -184,10 +243,23 @@ class GTFTranscriptContainer(object):
         self.update()
 
     def update(self):
+        """Recompute self.start and self.end from the current feature list."""
         self.start = min([x.start for x in self.features])
         self.end = max([x.end for x in self.features])
 
     def toSplicedInterval(self):
+        """Convert this transcript container to a SplicedInterval.
+
+        Extracts exon features, sorts them by exon_number, and constructs a
+        SplicedInterval using their lengths and offsets.
+
+        Returns:
+            A SplicedInterval representing the spliced transcript.
+
+        Raises:
+            ValueError: If more than one distinct transcript_id is found
+                in the feature list.
+        """
         transcripts = uniqify([x.attributes['transcript_id'] for x in self.features])
         if len(transcripts) > 1:
             raise ValueError ("Something is wrong, there are too many different transcript_ids")
@@ -204,18 +276,27 @@ class GTFTranscriptContainer(object):
 ############
 
 class GTFGeneContainer(object):
-    '''
-    Container for all GTF_Entry instances with a common geneId
-    Assumptions:
-        - gene_id field is unique to a gene locus (ie. not shared amongst gene duplicates
-        - There is no guarantee that the order of rows is preserved during reading in and returning GTF
+    """Container for all GTF_Entry instances sharing a common gene_id.
 
-    '''
+    Assumptions:
+        - The gene_id field is unique to a gene locus (not shared among
+          gene duplicates).
+        - There is no guarantee that the row order is preserved during
+          reading or when returning GTF output.
+
+    Attributes:
+        features: List of GTF_Entry objects for this gene.
+        transcripts: List of GTFTranscriptContainer objects for this gene.
+        start: Minimum start coordinate across all features/transcripts.
+        end: Maximum end coordinate across all features/transcripts.
+        contig: Chromosome/contig name.
+        strand: Strand orientation.
+        geneId: gene_id attribute value.
+        sequence: DNA sequence string (empty by default).
+    """
 
     def __init__(self):
-        '''
-        Constructor
-        '''
+        """Construct an empty GTFGeneContainer with sentinel values."""
         self.features = []
         self.transcripts = []
         self.start = -1
@@ -226,15 +307,30 @@ class GTFGeneContainer(object):
         self.sequence = ''
 
     def __len__(self):
+        """Return the genomic span of the gene (end - start + 1)."""
         return self.end-self.start+1
 
     def __lt__(self, b):
+        """Compare gene containers by midpoint coordinate."""
         return (self.start + self.end) // 2 < (b.start + b.end) // 2
 
     def __eq__(self, b):
+        """Return True if two gene containers share the same midpoint."""
         return (self.start + self.end) // 2 == (b.start + b.end) // 2
 
     def addFeature(self,gtf_entry):
+        """Add a GTF_Entry feature to this gene container.
+
+        Initialises contig, strand, and geneId from the first feature added.
+        Asserts that subsequent features share the same gene_id. Updates
+        self.start and self.end.
+
+        Args:
+            gtf_entry: A GTF_Entry instance to add.
+
+        Raises:
+            AssertionError: If gtf_entry has a different gene_id.
+        """
         if self.geneId == '':
             self.contig = gtf_entry.contig
             self.strand = gtf_entry.strand
@@ -244,6 +340,18 @@ class GTFGeneContainer(object):
         self.update()
 
     def addGTFTranscript(self,gtf_transcript):
+        """Add a GTFTranscriptContainer to this gene container.
+
+        Initialises contig, strand, and geneId from the first transcript added.
+        Asserts that subsequent transcripts share the same geneId, contig, and
+        strand. Updates self.start and self.end via transcriptUpdate().
+
+        Args:
+            gtf_transcript: A GTFTranscriptContainer instance to add.
+
+        Raises:
+            AssertionError: If geneId, contig, or strand do not match.
+        """
         if self.geneId == '':
             self.contig = gtf_transcript.contig
             self.strand = gtf_transcript.strand
@@ -253,21 +361,34 @@ class GTFGeneContainer(object):
         self.transcriptUpdate()
 
     def update(self):
+        """Recompute self.start and self.end from the current features list."""
         self.start = min([x.start for x in self.features])
         self.end = max([x.end for x in self.features])
 
     def transcriptUpdate(self):
+        """Recompute self.start and self.end from the transcripts list."""
         self.start = min([x.start for x in self.transcripts])
         self.end = max([x.end for x in self.transcripts])
 
 
     def propogateLincName(self,lincName):
+        """Set the linc_name attribute on all features, and gene_name if absent.
+
+        Args:
+            lincName: The lincRNA name string to propagate to all features.
+        """
         for feat in self.features:
             feat.attributes['linc_name'] = lincName
             if 'gene_name' not in feat.attributes:
                 feat.attributes['gene_name'] = lincName
 
     def addAttribute(self,key,value):
+        """Add or overwrite an attribute key-value pair on all features.
+
+        Args:
+            key: Attribute name string.
+            value: Attribute value to assign.
+        """
         for feat in self.features:
             feat.attributes[key] = value
 

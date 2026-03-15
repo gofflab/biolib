@@ -1,3 +1,11 @@
+"""Statistical and mathematical utilities for biological data analysis.
+
+Provides descriptive statistics, probability distributions (PDF and CDF),
+random variates, regression, sliding-window operations, curve fitting, and
+special mathematical functions.  Functions that require external tools (rpy2,
+gnuplot) fall back gracefully or raise ``NotImplementedError`` when those
+dependencies are absent.
+"""
 # python libs
 import cmath
 import os
@@ -16,11 +24,35 @@ from . import algorithms
 
 
 def prod(lst):
-    """Computes the product of a list of numbers"""
+    """Compute the product of a list of positive numbers via log-space summation.
+
+    Calculates ``exp(sum(log(i) for i in lst))``, which avoids numerical
+    overflow for large lists by working in log space.  All values in
+    ``lst`` must be strictly positive.
+
+    Args:
+        lst: An iterable of strictly positive numbers.
+
+    Returns:
+        The product of all elements in ``lst`` as a float.
+    """
     return exp(sum(log(i) for i in lst))
 
 def mean(vals):
-    """Computes the mean of a list of numbers"""
+    """Compute the arithmetic mean of a sequence of numbers.
+
+    Iterates through ``vals`` once, accumulating the sum and count,
+    then divides to produce the mean.
+
+    Args:
+        vals: An iterable of numeric values.  Must be non-empty.
+
+    Returns:
+        The arithmetic mean as a float.
+
+    Raises:
+        ZeroDivisionError: If ``vals`` is empty.
+    """
     n = 0
     s = 0.0
     for i in vals:
@@ -29,7 +61,17 @@ def mean(vals):
     return s / float(n)
 
 def median(vals):
-    """Computes the median of a list of numbers"""
+    """Compute the median of a list of numbers.
+
+    Sorts ``vals`` and returns the middle value for odd-length lists, or
+    the average of the two middle values for even-length lists.
+
+    Args:
+        vals: A sequence of numeric values.  Must be non-empty.
+
+    Returns:
+        The median value as a float.
+    """
     lenvals = len(vals)
     sortvals = sorted(vals)
 
@@ -39,7 +81,20 @@ def median(vals):
         return sortvals[lenvals // 2]
 
 def mode(vals):
-    """Computes the mode of a list of numbers"""
+    """Compute the mode (most frequently occurring value) of a sequence.
+
+    Uses :class:`collections.Counter` to count occurrences and returns
+    the value with the highest count.  If multiple values share the
+    maximum count, the one encountered first during dict iteration is
+    returned (which is insertion order in Python 3.7+).
+
+    Args:
+        vals: An iterable of hashable values.
+
+    Returns:
+        The most frequently occurring element in ``vals``, or ``None``
+        if ``vals`` is empty.
+    """
     top = 0
     topkey = None
     for key, val in Counter(vals).items():
@@ -50,8 +105,22 @@ def mode(vals):
 
 
 def msqerr(vals1, vals2):
-    """Mean squared error"""
+    """Compute the mean squared error between two equal-length sequences.
 
+    Calculates the average of the squared element-wise differences::
+
+        MSE = mean((vals1[i] - vals2[i])^2  for all i)
+
+    Args:
+        vals1: A sequence of numeric values.
+        vals2: A sequence of numeric values of the same length as ``vals1``.
+
+    Returns:
+        The mean squared error as a float.
+
+    Raises:
+        AssertionError: If ``vals1`` and ``vals2`` have different lengths.
+    """
     assert len(vals1) == len(vals2), "lists are not the same length"
 
 
@@ -61,15 +130,48 @@ def msqerr(vals1, vals2):
 
 
 def variance(vals):
-    """Variance"""
+    """Compute the sample variance of a sequence of numbers.
+
+    Uses Bessel's correction (divides by ``n - 1``) to produce an
+    unbiased estimate of the population variance::
+
+        s^2 = sum((x - mean)^2) / (n - 1)
+
+    Args:
+        vals: A sequence of at least two numeric values.
+
+    Returns:
+        The sample variance as a float.
+
+    Raises:
+        ZeroDivisionError: If ``vals`` has fewer than 2 elements.
+    """
     u = mean(vals)
     return sum((x - u)**2 for x in vals) / float(len(vals)-1)
 
 def var(vals):
+    """Alias for :func:`variance`.
+
+    Args:
+        vals: A sequence of at least two numeric values.
+
+    Returns:
+        The sample variance as a float.
+    """
     return variance(vals)
 
 def sdev(vals):
-    """Standard deviation"""
+    """Compute the sample standard deviation of a sequence of numbers.
+
+    Returns the square root of the sample variance computed by
+    :func:`variance` (Bessel-corrected, ``n - 1`` denominator).
+
+    Args:
+        vals: A sequence of at least two numeric values.
+
+    Returns:
+        The sample standard deviation as a float.
+    """
     return sqrt(variance(vals))
 
 def serror(vals):

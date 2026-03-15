@@ -1,10 +1,19 @@
 #!/usr/bin/env python
 
-"""
-JensenShannon.py
+"""Jensen-Shannon divergence utilities for comparing probability distributions.
 
-Created by Loyal Goff on Nov 10, 2010.
-Copyright (c) 2010
+Provides functions to compute the Jensen-Shannon (JS) divergence between pairs
+of discrete probability distributions and to construct pairwise JS divergence
+matrices from a collection of distributions.  The JS divergence is a
+symmetrised, smoothed version of the Kullback-Leibler (KL) divergence and is
+defined as::
+
+    JS(A || B) = 0.5 * KL(A || M) + 0.5 * KL(B || M),  where M = (A + B) / 2
+
+Because it is bounded in [0, ln 2] (or [0, 1] in bits), its square root is a
+proper metric known as the Jensen-Shannon distance.
+
+Originally created by Loyal Goff on Nov 10, 2010.
 """
 
 import rpy2.robjects as r
@@ -15,6 +24,26 @@ from scipy.stats.distributions import entropy
 
 #efficnent js_div
 def js_div_matrix(a):
+    """Compute a pairwise Jensen-Shannon divergence matrix efficiently.
+
+    For each pair of rows ``i`` and ``j`` in ``a``, computes::
+
+        JS(i, j) = 0.5 * (H(M) - 0.5*(H(i) + H(j)))
+
+    where ``M = (a[i] + a[j]) / 2`` and ``H`` denotes Shannon entropy.
+    The implementation avoids an O(n^2) loop over pairs by vectorising
+    the inner computation row-by-row, giving O(n) outer iterations.
+
+    Args:
+        a: A 2-D array-like of shape ``(n, d)`` where each row is a
+            probability distribution over ``d`` categories (rows should
+            sum to 1 for the result to be a true JS divergence).
+
+    Returns:
+        A symmetric ``(n, n)`` NumPy array ``W`` where ``W[i, j]`` is the
+        Jensen-Shannon divergence between rows ``i`` and ``j`` of ``a``.
+        Diagonal entries are 0.
+    """
     a=array(a)
     W=zeros((a.shape[0],a.shape[0]))
     e=-entropy(a.transpose())
@@ -27,6 +56,19 @@ def js_div_matrix(a):
     return W
 
 def make_probs(a):
+    """Normalise each row of a 2-D array to sum to 1.
+
+    Divides each row of ``a`` by its sum, converting raw counts or
+    unnormalised weights into proper probability distributions.
+
+    Args:
+        a: A 2-D NumPy array of shape ``(n, d)`` with non-negative
+            entries.  Each row must have a positive sum.
+
+    Returns:
+        A 2-D NumPy array of the same shape as ``a`` where each row
+        sums to 1.0.
+    """
     sums = sum(a,1)
     res = zeros(a.shape)
     for i in range(a.shape[0]):
@@ -34,13 +76,56 @@ def make_probs(a):
     return res
 
 def js_div(A,B):
+    """Compute the Jensen-Shannon divergence between two distributions.
+
+    The JS divergence is defined as::
+
+        JS(A || B) = 0.5 * KL(A || M) + 0.5 * KL(B || M)
+
+    where ``M = (A + B) / 2`` is the mixture distribution and
+    ``KL(P || Q) = sum(P * log(P / Q))``.  The result is symmetric and
+    always non-negative.
+
+    Args:
+        A: A 1-D array-like representing the first probability
+            distribution.  All entries should be positive for a
+            well-defined result.
+        B: A 1-D array-like representing the second probability
+            distribution of the same length as ``A``.
+
+    Returns:
+        A scalar float equal to the Jensen-Shannon divergence between
+        ``A`` and ``B``.
+    """
     half=(A+B)/2
     return 0.5*kl_div(A,half)+0.5*kl_div(B,half)
 
 def kl_div(A,B):
+    """Compute the Kullback-Leibler divergence of distribution A from B.
+
+    Calculates the KL divergence using the formula::
+
+        KL(A || B) = sum(A * log(A / B))
+
+    where the sum is taken element-wise.  The result is non-negative and
+    equals zero only when ``A`` and ``B`` are identical.  Note that the
+    KL divergence is not symmetric: ``kl_div(A, B) != kl_div(B, A)``
+    in general.
+
+    Args:
+        A: A 1-D array-like representing the first (reference)
+            probability distribution.  All entries should be positive.
+        B: A 1-D array-like representing the second probability
+            distribution of the same length as ``A``.  All entries
+            should be positive to avoid division by zero.
+
+    Returns:
+        A scalar float equal to the KL divergence KL(A || B).
+    """
     return sum(multiply(A,log(A/B)))
 
 def main():
+    """Entry point placeholder; no operation is performed."""
     pass
 
 if __name__ == "__main__":

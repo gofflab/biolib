@@ -1,12 +1,14 @@
 #!/usr/bin/env python
-'''
-Created on Oct 8, 2009
-Generates list of candidate siRNAs from .fasta sequence given as argument
+"""Tools for designing small RNA molecules including siRNAs, dsRNAs, and ASOs.
 
-@author: lgoff
+Generates and scores candidate siRNA sequences from FASTA input according to
+published design rules for RNA interference (RNAi).  Also includes support for
+RNA activation (RNAa) dsRNA design based on Vera et al. criteria, and
+antisense oligonucleotide (ASO) scanning.
 
-Reference: http://www.protocol-online.org/prot/Protocols/Rules-of-siRNA-design-for-RNA-interference--RNAi--3210.html
-'''
+Reference:
+    http://www.protocol-online.org/prot/Protocols/Rules-of-siRNA-design-for-RNA-interference--RNAi--3210.html
+"""
 import math
 import sys
 
@@ -14,7 +16,15 @@ from . import blockIt, sequencelib
 
 
 def main(fastaFile):
-    """Do it all"""
+    """Runs the full siRNA candidate pipeline on a FASTA file.
+
+    Opens the FASTA file, iterates over each record, and prints candidate
+    siRNA sequences with their scores to stdout using evaluateSequence.
+
+    Args:
+        fastaFile: Path to a FASTA-format file containing one or more
+            nucleotide sequences to screen for siRNA candidates.
+    """
     handle = open(fastaFile,'r')
     iter = sequencelib.FastaIterator(handle)
     for i in iter:
@@ -22,7 +32,17 @@ def main(fastaFile):
         evaluateSequence(i["sequence"])
         
 def evaluateSequence(seq,scoreCutoff=6):
-    """Wrapper for testCandidate() that iterates across sequence provided and returns candidates with a score >= scoreCutoff (default = 6)"""
+    """Scans a nucleotide sequence for siRNA candidates meeting a score threshold.
+
+    Slides a 21-nt window across the sequence, scores each window with
+    testCandidate, and prints passing candidates together with their BlockIt
+    insert sequences.
+
+    Args:
+        seq: Nucleotide sequence string to scan.
+        scoreCutoff: Minimum score (inclusive) for a 21-mer to be reported
+            (default: 6).
+    """
     for i in range(0,len(seq)-21):
         candidate = seq[i:i+21]
         score = testCandidate(candidate)
@@ -32,7 +52,27 @@ def evaluateSequence(seq,scoreCutoff=6):
             print("Fwd:%s\tRev:%s" % (insertSeqs[0],insertSeqs[1])) 
             
 def testCandidate(seq):
-    """Checks 21mer candidates against siRNA rules and assigns a score on a scale of 0-8"""
+    """Scores a 21-mer siRNA candidate against established siRNA design rules.
+
+    Evaluates the 21-nt sense strand against the following criteria:
+        1. Moderate GC content (30-52%) — +1 point.
+        2. At least 3 A/U nucleotides at positions 15-19 — +1 per A/U (up to +4).
+        3. Lack of internal repeats (melting temperature < 20 °C) — +1 point.
+        4. 'A' at position 19 — +1 point.
+        5. 'A' at position 3 — +1 point.
+        6. 'U' (T in DNA) at position 10 — +1 point.
+        7. G or C at position 19 — -1 point.
+        8. 'G' at position 13 — -1 point.
+        9. Homopolymer run of 4 or more identical bases — -5 points per run.
+
+    Args:
+        seq: A 21-nucleotide DNA-sequence string representing the siRNA sense
+            strand (case-insensitive; T is used in place of U).
+
+    Returns:
+        Numeric score (float) on an approximate scale of 0-8.  Returns False
+        if the sequence is not exactly 21 nt.
+    """
     #seq = seq.upper()
     if len(seq)!=21:
         assert ValueError("Candidate is not 21nt in length")
@@ -72,10 +112,31 @@ def testCandidate(seq):
     return score
 
 def getTm(seq):
+    """Calculates the melting temperature (Tm) of a nucleotide sequence.
+
+    Uses an empirical formula suitable for oligonucleotides to estimate the
+    melting temperature in degrees Celsius assuming a salt concentration of
+    50 mM:
+        Tm = 79.8 + 18.5*log10([Na+]) + 58.4*GC + 11.8*GC^2 - 820/len
+
+    Args:
+        seq: A nucleotide sequence string.
+
+    Returns:
+        Estimated melting temperature in degrees Celsius (float).
+    """
     Tm = 79.8 + 18.5*math.log10(0.05) + (58.4 * getGC(seq)) + (11.8 * getGC(seq)**2) - (820/len(seq))
     return Tm
 
 def getGC(seq):
+    """Calculates the GC content of a nucleotide sequence.
+
+    Args:
+        seq: A nucleotide sequence string (case-insensitive).
+
+    Returns:
+        GC fraction as a float between 0.0 and 1.0.
+    """
     seq = seq.upper()
     return (seq.count('C')+seq.count('G'))/float(len(seq))
 
@@ -200,6 +261,20 @@ def ASOscan(targetSeq):
     return sorted(candidates,key=lambda k: k['score'],reverse=True)
 
 def makeDsRNA(seq):
+    """Formats a 19-nt RNA sequence as a dsRNA oligonucleotide pair with TT 3' overhangs.
+
+    Produces the sense and antisense strands in a format suitable for ordering
+    RNA oligonucleotides.  Each nucleotide is prefixed with 'r' and the
+    sequence is terminated with a 'TT' 3' overhang.
+
+    Args:
+        seq: A 19-nucleotide DNA sequence string representing the sense strand.
+
+    Returns:
+        A list of two strings: [sense_strand_oligo, antisense_strand_oligo],
+        each formatted as individual 'r'-prefixed RNA nucleotides followed by
+        'TT'.  Returns False if the sequence is not exactly 19 nt.
+    """
     if len(seq)!=19:
         assert ValueError("Candidate is not 19nt in length")
         return False
@@ -208,7 +283,16 @@ def makeDsRNA(seq):
     return ["r"+"r".join(seq)+"TT","r"+"r".join(revSeq)+"TT"]
                                          
 def veraMain(fastaFile):
-    """Do it all"""
+    """Runs the full RNA activation (RNAa) dsRNA design pipeline on a FASTA file.
+
+    Opens a FASTA file of promoter sequences, scans each sequence for RNAa
+    dsRNA candidates using scanPromoter, and prints the top 10 results with
+    their positions, sequences, scores, melting temperatures, GC fractions,
+    and formatted oligonucleotide sequences.
+
+    Args:
+        fastaFile: Path to a FASTA file of promoter sequences to scan.
+    """
     handle = open(fastaFile,'r')
     iter = sequencelib.FastaIterator(handle)
     for i in iter:

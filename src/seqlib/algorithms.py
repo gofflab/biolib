@@ -322,15 +322,27 @@ class QuadTree:
 # TODO: make a funtion based linear search
 
 def binsearch(lst, val, compare=None, order=1):
-    """Performs binary search for val in lst using compare
+    """Perform binary search for val in lst, returning a bracket of indices.
 
-       if val in lst:
-          Returns (i, i) where lst[i] == val
-       if val not in lst
-          Returns index i,j where
-            lst[i] < val < lst[j]
+    Runs in O(log n). If val is found exactly, both elements of the returned
+    tuple are the same index. If val is not found, the tuple brackets the
+    position where val would be inserted.
 
-       runs in O(log n)
+    Args:
+        lst: A sorted sequence to search.
+        val: The value to search for.
+        compare: An optional two-argument callable compare(a, b) that returns
+            -1, 0, or 1 (like the old cmp function). Defaults to numeric
+            comparison via subtraction of boolean comparisons.
+        order: 1 for ascending sort order, -1 for descending. Defaults to 1.
+
+    Returns:
+        A tuple (i, j) where:
+            - (i, i) if lst[i] == val (exact match).
+            - (i, None) if val is beyond the high end of lst.
+            - (None, j) if val is before the low end of lst.
+            - (i, j) with i < j if val falls between lst[i] and lst[j].
+            - (None, None) if lst is empty.
     """
     if compare is None:
         def compare(a, b): return (a > b) - (a < b)
