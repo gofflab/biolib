@@ -144,8 +144,29 @@ def getGC(seq):
 #dsRNA rules from Vera et al. (updated 2-1-10)
 ######
 def scanPromoter(promSeq):
-    """
-    Evaluates candidate dsRNAs for RNAa from a given sequence.  Returns a list of dictionaries of candidates and their score.
+    """Scans a promoter sequence for RNA activation (RNAa) dsRNA candidates.
+
+    Slides a 19-nt window across the promoter sequence and scores each window
+    against design rules derived from Vera et al. for small activating RNA
+    (saRNA) design.  Scoring rules include:
+        - GC content 40-65%: +1 point.
+        - Homopolymer run of 4 or more bases: -5 points per run.
+        - 'A' at position 19: +1 point.
+        - G or C at position 19: -1 point.
+        - 'A' at position 18: +2 points; 'T' at position 18: +1 point.
+        - 'T' at position 7: +1 point.
+        - 3 or more A/T nucleotides at positions 20-23 (3' flank): bonus points.
+        - Tm < 20 °C (low internal repeats): +1 point.
+
+    Args:
+        promSeq: Promoter DNA/RNA sequence string to scan (case-insensitive;
+            converted to uppercase internally).
+
+    Returns:
+        A list of candidate dictionaries sorted by descending score.  Each
+        dictionary contains: 'seq' (19-nt candidate), 'pos' (position relative
+        to 3' end of promSeq), 'gc' (GC fraction), 'score' (float), and
+        'Tm' (melting temperature in °C).
     """
     promSeq = promSeq.upper()
     window = 19
@@ -202,8 +223,23 @@ def scanPromoter(promSeq):
     return sorted(candidates,key=lambda k: k['score'],reverse=True)
 
 def ASOscan(targetSeq):
-    """
-    Evaluates candidate dsRNAs for RNAa from a given sequence.  Returns a list of dictionaries of candidates and their score.
+    """Scans a target RNA sequence for antisense oligonucleotide (ASO) candidates.
+
+    Reverse-complements the input sequence and slides a 20-nt window across
+    it to evaluate ASO design candidates.  Each candidate is scored primarily
+    on GC content (45-65% preferred, +2 points) and melting temperature
+    (Tm > 45 °C preferred, +2 points), with penalties for homopolymer runs
+    of 4 or more bases (-5 points each).
+
+    Args:
+        targetSeq: The target RNA/DNA sequence string (sense strand) to
+            design ASOs against.  It is reverse-complemented internally.
+
+    Returns:
+        A list of candidate dictionaries sorted by descending score, each
+        containing keys: 'seq' (20-nt candidate sequence), 'pos' (position
+        relative to 3' end of input), 'gc' (GC fraction), 'score' (float
+        total score), and 'Tm' (melting temperature in °C).
     """
     targetSeq = sequencelib.rcomp(targetSeq)
     window = 20
@@ -303,7 +339,18 @@ def veraMain(fastaFile):
             print("Pos:\t%d\nCandidate:\t%s\nScore:\t%.2f\nTm:\t%.2f\nGC:\t%.2f\nFwd:\t%s\nRev:\t%s\n------------------------" % (candidate['pos'],candidate['seq'],candidate['score'],candidate['Tm'],candidate['gc'],dsRNA[0],dsRNA[1]))
 
 def ASOMain(fastafile):
-    """Takes a fasta sequnce of RNAs, reverse-complements and scans for ASO sequences"""
+    """Runs the full ASO design pipeline on a FASTA file of RNA sequences.
+
+    Opens the FASTA file, reverse-complements each record, scans for
+    antisense oligonucleotide (ASO) candidates using ASOscan, and prints the
+    top 10 uppercase candidates with their positions, sequences, scores,
+    melting temperatures, and GC fractions.  Candidates containing lowercase
+    letters (ambiguous bases) are skipped.
+
+    Args:
+        fastafile: Path to a FASTA file of RNA/DNA sequences for which ASOs
+            should be designed.
+    """
     handle = open(fastafile,'r')
     iter = sequencelib.FastaIterator(handle)
     for i in iter:

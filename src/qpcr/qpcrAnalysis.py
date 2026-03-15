@@ -1,12 +1,19 @@
 #!/usr/bin/env python
 '''
-Created on Feb 22, 2010
+Core qPCR analysis module using four-parameter logistic modelling and iterative
+nonlinear regression for efficiency estimation.
+
+Provides the ``Well`` class for per-well data storage and curve fitting, along
+with standalone functions for parsing raw ABI instrument output, performing
+delta-delta Ct (ddCt) relative quantification, and reporting results.
+
+This module extends the functionality in ``abi.py`` with a more rigorous
+curve-fitting approach based on the four-parameter logistic (4PL) model
+described in Zhao et al.
 
 Requirements:
     - numpy
-    - rpy
-    - R (obviously)
-        - lattice package (for plotting)
+    - scipy
 
 results.txt input format example (tab-delimited):
 Well    Sample      Detector      Task      Ct    Threshold
@@ -49,7 +56,37 @@ dictKeys = ['well','sample','detector','task','Ct','threshold']
 #Classes
 ##########################
 class Well:
+    """Represents a single PCR well with its raw data and fitted curve parameters.
+
+    Stores metadata (sample name, detector, task, etc.), raw fluorescence
+    readings keyed by cycle, and all intermediate and final results from
+    four-parameter logistic curve fitting and crossing-point estimation.
+
+    Attributes:
+        wellNum: Integer well number (defaults to -1 until populated).
+        sample: Sample name string.
+        detector: Detector (primer/probe) name string.
+        reporter: Reporter dye name string.
+        task: Task type string (e.g., ``"EndogenousControl"``).
+        Ct: Threshold cycle value (float).
+        quantity: Quantity value from ABI output (float).
+        eff: Amplification efficiency (float).
+        threshold: Fluorescence threshold (float).
+        cycles: List of cycle labels from the cycle data file.
+        fluorData: Numpy array of fluorescence readings per cycle.
+        flags: Dict of quality-flag name/value pairs parsed from the ABI file.
+        RNoise: Standard error of the baseline fluorescence parameter (y0)
+            from the fitted 4PL model; None until ``fitPCRCurve`` is called.
+    """
+
     def __init__(self,line):
+        """Initialise a Well with default empty values.
+
+        Args:
+            line: The raw text line from the ABI file used to create this
+                well (stored for reference but not parsed here; parsing is
+                done by ``parseRawABI``).
+        """
         self.wellNum = -1
         self.sample = ''
         self.detector = ''
@@ -65,12 +102,42 @@ class Well:
         self.RNoise = None
 
     def estimateParams(self):
+        """Generate initial parameter guesses for the four-parameter logistic model.
+
+        Estimates starting values for the curve-fitting routine based on
+        simple statistics of the raw fluorescence data:
+
+        - ``y0``: mean of the first five cycles (baseline fluorescence).
+        - ``x0``: cycle nearest the midpoint fluorescence (inflection point).
+        - ``a``: dynamic range (max minus min fluorescence).
+        - ``b``: set to 0 (the optimiser handles this parameter well without
+          a manual initial estimate).
+
+        Populates the instance attributes ``y0``, ``x0``, ``a``, and ``b``
+        in-place.
+        """
         self.y0 = np.mean(self.fluorData[:5]) # Initial guess as to baseline fluorescence (mean of first five cycles)
         self.x0 = self.cycles[np.argmin(abs(self.fluorData-np.mean(self.fluorData)))] # Initial guess as to inflection point at middle of curve
         self.a = (np.max(self.fluorData)-np.min(self.fluorData))# Initial guess as to y value at inflection
         self.b = 0 # Don't think I need to estimate this parameter, model seems to do a good job of fitting this one.
 
     def fitPCRCurve(self):
+        """Fit the four-parameter logistic (4PL) model to the fluorescence data.
+
+        Calls ``scipy.optimize.curve_fit`` with ``qpcrFit`` as the model
+        function and up to 5000 function evaluations. After fitting,
+        updates the instance attributes:
+
+        - ``a``, ``b``, ``x0``, ``y0``: fitted model parameters.
+        - ``pCov``: covariance matrix of the fitted parameters.
+        - ``fitData``: list of model-predicted fluorescence values at each
+          cycle.
+        - ``paramSE``: dict mapping parameter names (``'a'``, ``'b'``,
+          ``'x0'``, ``'y0'``) to their standard errors (sqrt of the
+          diagonal of ``pCov``).
+        - ``RNoise``: standard error of the ``y0`` parameter, used as an
+          estimate of baseline noise.
+        """
         #Fit qpcr Model
         newParams,self.pCov = optimize.curve_fit(qpcrFit,xdata=self.cycles,ydata=self.fluorData,maxfev=5000)
         #Update params

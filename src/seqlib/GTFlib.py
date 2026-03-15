@@ -398,15 +398,27 @@ class GTFGeneContainer(object):
         return "%s\t%d\t%d\t%s\t0\t%s\t%s\t%s" % (self.contig,self.start,self.end,self.attributes['transcript_id'],self.strand,",".join(self.exonLengths),",".join(self.exonOffsets))
 
     def transcriptsToBed(self):
+        """Placeholder for BED output of transcripts (not yet implemented)."""
         pass
 
     def getGTF(self):
+        """Return a GTF string containing all features of this gene.
+
+        Returns:
+            Multi-line string of GTF-formatted rows for every feature.
+        """
         tmp = ''
         for feat in self.features:
             tmp += feat.toGTF()
         return tmp
 
     def toInterval(self):
+        """Convert this gene to an Interval spanning its genomic footprint.
+
+        Returns:
+            An Interval with 0-based start (start-1), end, strand, and the
+            gene_id as its name.
+        """
         return intervallib.Interval(self.contig,self.start-1,self.end,self.strand,name=self.geneId)
 
     # def fetchSequence(self,genome='hg19',connection=None):
@@ -424,6 +436,17 @@ class GTFGeneContainer(object):
 #lineIterator
 #############
 def lineIterator(gtfHandle):
+    """Yield GTF_Entry objects for every non-comment line in gtfHandle.
+
+    Skips lines starting with "#". Parses each remaining line into a
+    GTF_Entry via GTF_Entry.read().
+
+    Args:
+        gtfHandle: An open file handle to a GTF file.
+
+    Yields:
+        GTF_Entry objects, one per data line.
+    """
     while True:
         line = gtfHandle.readline()
         if not line: return
@@ -433,6 +456,18 @@ def lineIterator(gtfHandle):
         yield gtf_entry
 
 def GTFGeneIterator(gtfFile,verbose = False):
+    """Iterate over genes in a GTF file, yielding one GTFGeneContainer per gene.
+
+    Groups all GTF_Entry rows by gene_id and yields a fully-populated
+    GTFGeneContainer for each unique gene_id found.
+
+    Args:
+        gtfFile: Path to the GTF file.
+        verbose: If True, write progress messages to stderr (default False).
+
+    Yields:
+        GTFGeneContainer objects, one per unique gene_id.
+    """
     handle = open(gtfFile,'r')
     iter = lineIterator(handle)
     res = {}
@@ -445,6 +480,18 @@ def GTFGeneIterator(gtfFile,verbose = False):
         yield res[k]
 
 def GTFGeneIterator2(gtfFile,verbose=False):
+    """Iterate over genes by grouping transcripts, yielding one GTFGeneContainer per gene.
+
+    An alternative to GTFGeneIterator that builds genes from
+    GTFTranscriptContainer objects rather than raw GTF_Entry rows.
+
+    Args:
+        gtfFile: Path to the GTF file.
+        verbose: If True, write progress messages to stderr (default False).
+
+    Yields:
+        GTFGeneContainer objects, one per unique gene_id.
+    """
     iter = GTFTranscriptIterator(gtfFile,verbose=verbose)
     res = {}
     for i in iter:
@@ -454,6 +501,18 @@ def GTFGeneIterator2(gtfFile,verbose=False):
         yield res[k]
 
 def GTFTranscriptIterator(gtfFile,verbose = False):
+    """Iterate over transcripts in a GTF file, yielding one GTFTranscriptContainer per transcript.
+
+    Groups all GTF_Entry rows by transcript_id and yields a fully-populated
+    GTFTranscriptContainer for each unique transcript_id found.
+
+    Args:
+        gtfFile: Path to the GTF file.
+        verbose: If True, write progress messages to stderr (default False).
+
+    Yields:
+        GTFTranscriptContainer objects, one per unique transcript_id.
+    """
     handle = open(gtfFile,'r')
     iter = lineIterator(handle)
     res = {}
@@ -515,12 +574,15 @@ def GTFAttributeTable(gtfFile,outfile,idField='gene_id'):
     return
 
 def test():
-    """
-from RNASeq import GTFlib
-fname = 'linc_catalog.gtf'
-iter = GTFlib.GTFGeneIterator(fname)
-for i in iter:
-    print i.getGTF(),
+    """Placeholder test function. No-op.
+
+    Example usage (Python 2 style, for reference)::
+
+        from RNASeq import GTFlib
+        fname = 'linc_catalog.gtf'
+        iter = GTFlib.GTFGeneIterator(fname)
+        for i in iter:
+            print i.getGTF(),
     """
     pass
 

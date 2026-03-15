@@ -175,11 +175,35 @@ def sdev(vals):
     return sqrt(variance(vals))
 
 def serror(vals):
-    """Stanadrd error"""
+    """Compute the standard error of the mean of a sequence of numbers.
+
+    Divides the sample standard deviation by the square root of the
+    sample size::
+
+        SE = sdev(vals) / sqrt(n)
+
+    Args:
+        vals: A sequence of at least two numeric values.
+
+    Returns:
+        The standard error of the mean as a float.
+    """
     return sdev(vals) / sqrt(len(vals))
 
 def covariance(lst1, lst2):
-    """Covariance"""
+    """Compute the sample covariance between two equal-length sequences.
+
+    Uses Bessel's correction (divides by ``n - 1``)::
+
+        cov(X, Y) = sum((x - mean_x) * (y - mean_y)) / (n - 1)
+
+    Args:
+        lst1: A sequence of numeric values.
+        lst2: A sequence of numeric values of the same length as ``lst1``.
+
+    Returns:
+        The sample covariance as a float.
+    """
     m1 = mean(lst1)
     m2 = mean(lst2)
     tot = 0.0
@@ -189,14 +213,37 @@ def covariance(lst1, lst2):
 
 
 def covmatrix(mat):
-    """Covariance Matrix"""
+    """Compute the full pairwise sample covariance matrix for a list of sequences.
+
+    Evaluates :func:`covariance` for every pair ``(i, j)`` of rows in
+    ``mat`` (including self-covariances on the diagonal, which equal the
+    sample variance of that row).
+
+    Args:
+        mat: A list of ``n`` equal-length numeric sequences (rows).
+
+    Returns:
+        A ``(n, n)`` NumPy array where element ``[i, j]`` is the sample
+        covariance between ``mat[i]`` and ``mat[j]``.
+    """
     size = len(mat)
 
     flat = [covariance(mat[i], mat[j]) for i,j in ((i,j) for i in range(size) for j in range(size))]
     return np.array(flat).reshape(size, size)
 
 def corrmatrix(mat):
-    """Correlation Matrix"""
+    """Compute the full pairwise Pearson correlation matrix for a list of sequences.
+
+    Evaluates :func:`corr` for every pair ``(i, j)`` of rows in
+    ``mat`` (including self-correlations of 1.0 on the diagonal).
+
+    Args:
+        mat: A list of ``n`` equal-length numeric sequences (rows).
+
+    Returns:
+        A ``(n, n)`` NumPy array where element ``[i, j]`` is the Pearson
+        correlation coefficient between ``mat[i]`` and ``mat[j]``.
+    """
     size = len(mat)
 
     flat = [corr(mat[i], mat[j]) for i,j in ((i,j) for i in range(size) for j in range(size))]
@@ -204,7 +251,23 @@ def corrmatrix(mat):
 
 
 def corr(lst1, lst2):
-    """Pearson's Correlation"""
+    """Compute the Pearson correlation coefficient between two sequences.
+
+    Calculates::
+
+        r = cov(lst1, lst2) / (sdev(lst1) * sdev(lst2))
+
+    If the denominator is zero (one or both sequences have zero variance),
+    returns ``1e1000`` (effectively infinity) as a sentinel value.
+
+    Args:
+        lst1: A sequence of numeric values.
+        lst2: A sequence of numeric values of the same length as ``lst1``.
+
+    Returns:
+        The Pearson correlation coefficient as a float in [-1, 1], or
+        ``1e1000`` if either sequence has zero standard deviation.
+    """
     num = covariance(lst1, lst2)
     denom = float(sdev(lst1) * sdev(lst2))
     if denom != 0:

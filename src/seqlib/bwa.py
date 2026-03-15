@@ -185,6 +185,19 @@ def bwaAlignSubmit(files,mismatches=2,queue='hugemem'):
     return
 
 def bwaSamseSubmit(files,mismatches=2,queue='broad'):
+    """Submit BWA SAM conversion jobs (``bwa samse``) to an LSF cluster.
+
+    For each ``.sai`` file, constructs and submits an LSF ``bsub`` job that
+    runs ``bwa samse`` to convert the alignment index back to SAM format,
+    writing a ``.sam`` file.  Assumes a matching ``.fastq`` file exists with
+    the same base name.
+
+    Args:
+        files: A list of ``.sai`` file paths to convert.
+        mismatches: Unused parameter kept for interface compatibility.
+            Defaults to 2.
+        queue: LSF queue name to submit jobs to.  Defaults to 'broad'.
+    """
     for fname in files:
         shortname = fname.rstrip(".sai")
         command = "bsub -q %s -N -o /dev/null -P BWA_Samse 'bwa samse %s %s.sai %s.fastq >%s.sam 2>%s.e'" % (queue,prefix,shortname,shortname,shortname,shortname)
@@ -192,6 +205,16 @@ def bwaSamseSubmit(files,mismatches=2,queue='broad'):
     return
 
 def makeBam(files,queue='broad'):
+    """Submit SAM-to-BAM conversion jobs (``samtools view``) to an LSF cluster.
+
+    For each SAM file, constructs and submits an LSF ``bsub`` job that uses
+    ``samtools view`` to convert it to a BAM file indexed against the
+    module-level ``ref_index`` FASTA index.
+
+    Args:
+        files: A list of SAM file paths to convert.
+        queue: LSF queue name to submit jobs to.  Defaults to 'broad'.
+    """
     for fname in files:
         shortname = fname.rstrip("*.sam")
         command = "bsub -q %s -N -o /dev/null -P SAM2BAM 'samtools view -h -bt %s -o %s.bam %s 2>%s.bam.e'" % (queue,ref_index,shortname,fname,shortname)
@@ -199,6 +222,17 @@ def makeBam(files,queue='broad'):
     return
 
 def samSort(files,queue='broad'):
+    """Sort BAM files by coordinate using ``samtools sort``.
+
+    Iterates over a list of BAM files, printing a status message for each,
+    and runs ``samtools sort`` locally (not via LSF) to produce a
+    ``*_sorted.bam`` output file.
+
+    Args:
+        files: A list of BAM file paths to sort.
+        queue: Unused parameter kept for interface consistency with other
+            submit functions.  Defaults to 'broad'.
+    """
     for fname in files:
         shortname = fname.rstrip("*.bam")+"_sorted"
         command = "samtools sort %s %s" % (fname,shortname)
@@ -209,6 +243,20 @@ def samSort(files,queue='broad'):
 
 
 def pileup2wig(fname,shortname,outDir=os.getcwd()+"/"):
+    """Convert a samtools pileup file to strand-specific wiggle files.
+
+    Reads a samtools pileup output file and writes two variableStep wiggle
+    files: one for the plus strand (forward reads, '.' characters) and one
+    for the minus strand (reverse reads, ',' characters).
+
+    Args:
+        fname: Path to the samtools pileup file to read.
+        shortname: Base name used for the wiggle track labels and the output
+            file names (``<shortname>_plus.wig`` and
+            ``<shortname>_minus.wig``).
+        outDir: Directory in which the output wiggle files are written.
+            Defaults to the current working directory.
+    """
     handle = open(fname,'r')
     preRef = ''
     prePos = -1
@@ -219,6 +267,17 @@ def pileup2wig(fname,shortname,outDir=os.getcwd()+"/"):
     minusHand = open(outDir+shortname+"_minus.wig",'w')
 
     def wigHeader(shortname,strand):
+        """Build a UCSC wiggle track-definition header line.
+
+        Args:
+            shortname: Base name used in the track name and description.
+            strand: Strand of the track; '+' produces a blue track,
+                '-' produces a red track.
+
+        Returns:
+            A wiggle track header string suitable for the first line of a
+            wiggle file.
+        """
         if strand=="+":
             color = '0,0,255'
             sName = 'plus'
