@@ -146,6 +146,17 @@ def random_region(n,m=1):
     return c, start, end, strand
 
 def isMasked(s):
+    """Return True if the sequence contains any soft-masked or N characters.
+
+    Soft-masked characters are lowercase a, c, t, g, and n, plus uppercase N.
+
+    Args:
+        s: DNA sequence string.
+
+    Returns:
+        True if any character in s is in the set {a, c, t, g, n, N},
+        False otherwise.
+    """
     maskedChars='actgnN'
     for c in s:
         if c in maskedChars:
@@ -159,6 +170,25 @@ def isMasked(s):
 #SeqPath = pygr.Data.Bio.Seq.Genome.HUMAN.hg18
 
 def pygrConnect(genome="hg18",useWorldbase = False):
+    """Return a pygr genome sequence database handle for the given build.
+
+    Note: pygr is a Python 2-only library and is not available in Python 3.
+    This function will raise an ImportError or NameError at call time in
+    Python 3 environments.
+
+    Args:
+        genome: Genome build identifier string. Supported values: "hg18",
+            "hg19", "mm9", "mm8" (worldbase only for mm8).
+        useWorldbase: If True, connect via pygr's worldbase service. If
+            False (default), open the local FASTA file via SequenceFileDB.
+
+    Returns:
+        A pygr SequenceFileDB or worldbase genome object supporting
+        chromosome-level sequence access.
+
+    Raises:
+        AssertionError: If genome is not recognised.
+    """
     if useWorldbase:
         if genome == "hg18":
             res=worldbase.Bio.Seq.Genome.HUMAN.hg18()

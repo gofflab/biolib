@@ -1,4 +1,15 @@
 #!/usr/bin/env python
+"""Database connection helpers and genomic data retrieval utilities.
+
+Provides connection factories for several MySQL databases (Broad Institute
+internal, UCSC Genome Browser public mirror, local UCSC mirror on 'valor', and
+Ensembl) and a collection of query functions for fetching RefSeq transcripts,
+wgRNA annotations, CpG islands, repeat overlaps, lincRNA records, and miRNA
+seed sequences.
+
+Most connection functions require network access to specific internal or public
+servers and appropriate credentials.
+"""
 import sys
 import time
 
@@ -14,6 +25,13 @@ import sequencelib
 #
 ###################
 def broadConnect():
+    """Opens a DictCursor connection to the Broad Institute MySQL database.
+
+    Connects to the lgoff_nextgen schema on mysql.broadinstitute.org.
+
+    Returns:
+        A MySQLdb DictCursor for the lgoff_nextgen database.
+    """
     host="mysql.broadinstitute.org"
     user="lgoff"
     password=""
