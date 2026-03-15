@@ -101,33 +101,93 @@ def qpcrFit(x,a,b,x0,y0):
     return (y0+(a/(1+((x/x0)**b))))
 
 def qpcrFitResiduals(x,y,a,b,x0,y0):
-    """
-    Residuals:
-    errfunc = lambda p,x,y: y-fitfunc(p,x) #Distance to the target function (residuals)
+    """Compute residuals between observed fluorescence and the 4PL model.
+
+    Calculates ``y - qpcrFit(x, a, b, x0, y0)``.
+
+    Args:
+        x: Cycle number(s) (scalar or array).
+        y: Observed fluorescence value(s).
+        a: Amplitude parameter.
+        b: Slope/steepness parameter.
+        x0: Inflection point (cycle at midpoint).
+        y0: Baseline fluorescence (lower asymptote).
+
+    Returns:
+        Residual value(s) ``y - predicted``.
     """
     return y-qpcrFit(x,a,b,x0,y0)
 
 def nlmFit(x,a,b,y0):
-    """
-    Non-linear regression function to optimize for windows in exponential phase
-    here p = [a,b,y0]
+    """Evaluate the exponential nonlinear regression model for the exponential phase.
+
+    Models the exponential amplification phase as:
+        f(x) = y0 + a * (b ^ x)
+
+    Used for iterative nonlinear regression (iNLR) on windows within the
+    exponential phase. Parameters are ``[a, b, y0]``.
+
+    Args:
+        x: Cycle number (scalar or array).
+        a: Amplitude scaling factor.
+        b: Per-cycle amplification factor (related to efficiency: b ~ E).
+        y0: Baseline offset.
+
+    Returns:
+        Predicted fluorescence value(s) at cycle ``x``.
     """
     return y0+(a*(b**x))
 
 def nlmFitResiduals(x,y,a,b,y0):
-    """
-    Residuals:
-    errfunc = lambda p,x,y: y-nlmFit(x,a,b,y0) #Distance to the target function (residuals)
+    """Compute residuals between observed fluorescence and the exponential NLM model.
+
+    Calculates ``y - nlmFit(x, a, b, y0)``.
+
+    Args:
+        x: Cycle number(s) (scalar or array).
+        y: Observed fluorescence value(s).
+        a: Amplitude scaling factor.
+        b: Per-cycle amplification factor.
+        y0: Baseline offset.
+
+    Returns:
+        Residual value(s) ``y - predicted``.
     """
     return y-nlmFit(x,a,b,y0)
 
 def CP_FDM(p):
+    """Compute the crossing-point using the First Derivative Maximum (FDM) method.
+
+    Args:
+        p: Sequence of four fitted 4PL parameters ``[a, b, x0, y0]``.
+
+    Returns:
+        The FDM crossing-point cycle number as a float.
+    """
     return (p[2]*nthRoot(((p[1]-1)/(p[1]+1)),p[1]))
 
 def CP_SDM(p):
+    """Compute the crossing-point using the Second Derivative Maximum (SDM) method.
+
+    Args:
+        p: Sequence of four fitted 4PL parameters ``[a, b, x0, y0]``.
+
+    Returns:
+        The SDM crossing-point cycle number as a float.
+    """
     return p[2]*nthRoot((np.sqrt((3*p[1]**2)*(p[1]**2-1))-(2*(1-p[1]**2)))/((p[1]**2)+(3*p[1])+2),p[1])
 
 def CP_SPE(p,rNoise):
+    """Compute the crossing-point using the Signal-to-Noise (SPE) method.
+
+    Args:
+        p: Sequence of four fitted 4PL parameters ``[a, b, x0, y0]``.
+        rNoise: Baseline noise estimate (standard error of the ``y0``
+            parameter, i.e., ``RNoise``).
+
+    Returns:
+        The SPE crossing-point cycle number as a float.
+    """
     return (p[2]*nthRoot(((p[0]-rNoise)/rNoise),p[1]))
 
 

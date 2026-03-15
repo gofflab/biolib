@@ -154,6 +154,23 @@ def printLincs(handle,lincs):
 ############
 
 def main(gtfFile,genome='hg19'):
+    """Assigns systematic names to all lincRNA loci in a GTF file.
+
+    Reads lincRNA transcript models from gtfFile, retrieves protein-coding
+    RefSeq transcripts for the specified genome build, and applies the
+    bidirectional promoter, antisense, and proximity naming rules to produce
+    a set of named lincRNA objects.
+
+    Args:
+        gtfFile: Path to a GTF file of unannotated lincRNA loci (as produced
+            by Cufflinks or similar assemblers).
+        genome: UCSC genome build identifier used to fetch RefSeq transcripts
+            (default: 'hg19').
+
+    Returns:
+        A set of lincRNA gene objects with updated name attributes following
+        the systematic naming convention.
+    """
     #Parse GTF File for lincs
     lincIter = GTFlib.GTFGeneIterator(gtfFile,verbose=verbose)
 
@@ -266,6 +283,12 @@ def main(gtfFile,genome='hg19'):
 #Tests
 ############
 def test():
+    """Runs a full naming test using hardcoded Broad Institute file paths.
+
+    Calls main() on a hard-coded lincRNA GTF file, writes the named output
+    to a companion file, and prints a completion message to stderr.  Intended
+    for interactive/development testing only.
+    """
     fname = '/seq/rinnscratch/cole/ftp/assemblies/linc_catalog.gtf'
     outHandle = open('/seq/rinnscratch/cole/ftp/assemblies/linc_catalog_named.gtf','w')
     verbose=True

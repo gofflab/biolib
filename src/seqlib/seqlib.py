@@ -1,3 +1,13 @@
+"""Sequence data structures and molecular biology utilities.
+
+Provides SeqDict, a dictionary subclass for ordered molecular sequences, and
+a variety of constants and functions for DNA/RNA/protein operations including
+codon translation, reverse complementation, GC content calculation, and
+Kimura sequence evolution simulation.
+
+Author: lgoff (derived from rasmus seqlib)
+"""
+
 import copy
 import math
 import random
@@ -6,20 +16,30 @@ import random
 
 
 class SeqDict (dict):
-    """\
-    A dictionary for molecular sequences.  Also keeps track of their order,
-    useful for reading and writing sequences from fasta's.  See fasta.FastaDict
-    for subclass that implements FASTA reading and writing.
+    """A dictionary for molecular sequences that also tracks insertion order.
+
+    Useful for reading and writing sequences from FASTA files where order
+    matters. Keys are sequence names; values are sequence strings. See
+    fasta.FastaDict for a subclass that implements FASTA reading and writing.
+
+    Attributes:
+        names: List of sequence names in insertion order.
     """
 
     def __init__(self):
+        """Initialize an empty SeqDict."""
         dict.__init__(self)
 
         self.names = []
 
 
     def orderNames(self, aln):
-        """Orders the names in the same order they appear in aln"""
+        """Reorder self.names to match the key order of another dict.
+
+        Args:
+            aln: A dict (typically another SeqDict or alignment) whose key
+                order is used to sort self.names.
+        """
 
         # Inlined util.list2lookup: creates a dict mapping list items to their index
         lookup = {v: i for i, v in enumerate(aln.keys())}
@@ -28,6 +48,18 @@ class SeqDict (dict):
 
     # add a key, value pair
     def add(self, key, value, errors=False):
+        """Add a key-value pair, keeping the longest value on duplicate keys.
+
+        If the key already exists and the new value is at least as long as the
+        stored value, the stored value is replaced. The insertion order in
+        self.names is preserved (duplicate keys do not add to names).
+
+        Args:
+            key: Sequence name string.
+            value: Sequence string.
+            errors: If True, write a warning to stderr on duplicate keys
+                (default False).
+        """
         if key in self:
             if errors:
                 # Inlined util.logger: write to stderr
@@ -43,7 +75,17 @@ class SeqDict (dict):
 
 
     def get(self, keys, new=None):
-        """Return a subset of the sequences"""
+        """Return a new SeqDict containing only the given keys.
+
+        Args:
+            keys: Iterable of key names to include.
+            new: Optional pre-existing SeqDict to populate. If None, a new
+                instance of the same type is created.
+
+        Returns:
+            A SeqDict (or instance of the same subclass) containing the
+            requested keys that are present in self.
+        """
 
         if new == None:
             new = type(self)()
@@ -66,57 +108,103 @@ class SeqDict (dict):
 
     # The following methods keep names in sync with dictionary keys
     def __setitem__(self, key, value):
+        """Set a key-value pair and add key to self.names if new."""
         if key not in self:
             self.names.append(key)
         dict.__setitem__(self, key, value)
 
     def __delitem__(self, key):
+        """Delete a key and remove it from self.names."""
         self.names.remove(key)
 
     def update(self, dct):
+        """Update from another dict, appending new keys to self.names.
+
+        Args:
+            dct: Dict-like object whose items will be merged into self.
+        """
         for key in dct:
             if key not in self.names:
                 self.names.append(key)
         dict.update(self, dct)
 
     def setdefault(self, key, value):
+        """Set key to value only if key is absent, tracking order.
+
+        Args:
+            key: Key to look up or set.
+            value: Default value to assign if key is missing.
+        """
         if key not in self.names:
             self.names.append(key)
         dict.setdefault(self, key, value)
 
     def clear(self):
+        """Remove all items and reset self.names to an empty list."""
         self.names = []
         dict.clear(self)
 
     # keys are always sorted in order added
     def keys(self):
+        """Return keys in insertion order.
+
+        Returns:
+            List of key names in insertion order.
+        """
         return list(self.names)
 
     def iterkeys(self):
+        """Iterate over keys in insertion order.
+
+        Returns:
+            Iterator over key name strings.
+        """
         return iter(self.names)
 
     def values(self):
+        """Return values in key insertion order.
+
+        Returns:
+            List of sequence strings in the same order as self.names.
+        """
         return [self[key] for key in self.iterkeys()]
 
     def itervalues(self):
+        """Iterate over values in key insertion order.
+
+        Returns:
+            Generator yielding sequence strings in insertion order.
+        """
         def func():
             for key in self.iterkeys():
                 yield self[key]
         return func()
 
     def iteritems(self):
+        """Iterate over (key, value) pairs in key insertion order.
+
+        Returns:
+            Generator yielding (name, sequence) tuples.
+        """
         def func():
             for key in self.iterkeys():
                 yield (key, self[key])
         return func()
 
     def items(self):
+        """Return list of (key, value) pairs in insertion order.
+
+        Returns:
+            List of (name, sequence) tuples.
+        """
         return list(self.iteritems())
 
     def __iter__(self):
+        """Iterate over keys in insertion order."""
         return iter(self.names)
 
     def __len__(self):
+        """Return the number of sequences stored."""
         return len(self.names)
 
 
@@ -210,6 +298,17 @@ SUBSTITUTION_TYPES = {
 
 # hydrophobic / hydrophilic
 def hydrophobic(aa):
+    """Return a numeric hydrophobicity score for a single amino acid.
+
+    Args:
+        aa: Single-letter amino-acid code string.
+
+    Returns:
+        2.0 for strongly hydrophobic residues (VILMFWC),
+        1.0 for weakly hydrophobic residues (AYHTSPG),
+        0.5 for weakly hydrophilic residues (RK),
+        0.0 for all other residues.
+    """
     if aa in 'VILMFWC': return 2.0
     if aa in 'AYHTSPG': return 1.0
     if aa in 'RK': return 0.5
@@ -309,7 +408,24 @@ INT2BASE = ["A", "C", "G", "T"]
 #
 
 class TranslateError (Exception):
+    """Exception raised when a codon cannot be translated correctly.
+
+    Attributes:
+        aa: The amino-acid sequence string being reverse-translated.
+        dna: The original DNA sequence string.
+        a: The amino-acid character that triggered the error.
+        codon: The DNA codon that did not match.
+    """
     def __init__(self, msg, aa, dna, a, codon):
+        """Initialize a TranslateError.
+
+        Args:
+            msg: Human-readable error message.
+            aa: Amino-acid sequence being processed.
+            dna: Original DNA sequence.
+            a: The amino-acid character at the point of failure.
+            codon: The DNA codon at the point of failure.
+        """
         Exception.__init__(self, msg)
         self.aa = aa
         self.dna = dna
@@ -319,7 +435,22 @@ class TranslateError (Exception):
 
 
 def translate(dna, table=CODON_TABLE):
-    """Translates DNA (with gaps) into amino-acids"""
+    """Translate a DNA sequence (with gaps) into an amino-acid sequence.
+
+    Codons containing "N" are translated to "X" (unknown amino acid).
+    Gap codons "---" are translated to "-".
+
+    Args:
+        dna: DNA string whose length must be a multiple of 3.
+        table: Codon-to-amino-acid lookup dict (default CODON_TABLE).
+
+    Returns:
+        Amino-acid sequence string.
+
+    Raises:
+        AssertionError: If len(dna) is not a multiple of 3.
+        KeyError: If a codon is not present in the codon table.
+    """
 
     aa = []
 
@@ -335,9 +466,24 @@ def translate(dna, table=CODON_TABLE):
 
 
 def revtranslate(aa, dna, check=False):
-    """Reverse translates aminoacids (with gaps) into DNA
+    """Reverse-translate an amino-acid sequence (with gaps) back into DNA.
 
-       Must supply original ungapped DNA.
+    The original ungapped DNA sequence must be supplied so that the correct
+    codons are restored. Gap characters "-" in aa are expanded to "---" in the
+    output.
+
+    Args:
+        aa: Amino-acid string (may contain "-" gap characters).
+        dna: Original ungapped DNA string used to recover codons.
+        check: If True, verify that each codon translates back to the
+            expected amino acid (default False).
+
+    Returns:
+        DNA string with codons matching the amino-acid sequence.
+
+    Raises:
+        TranslateError: If check=True and a codon does not translate to the
+            expected amino acid.
     """
 
     seq = []
@@ -361,7 +507,17 @@ _comp = {"A":"T", "C":"G", "G":"C", "T":"A", "N":"N",
          "b":"v", "v":"b", "d":"h", "h":"d"}
 
 def revcomp(seq):
-    """Reverse complement a sequence"""
+    """Return the reverse complement of a DNA sequence.
+
+    Handles IUPAC ambiguity codes as well as standard A/C/G/T bases (both
+    upper and lower case).
+
+    Args:
+        seq: DNA sequence string.
+
+    Returns:
+        Reverse-complemented DNA sequence string.
+    """
 
     seq2 = []
     for i in range(len(seq)-1, -1, -1):
@@ -370,6 +526,14 @@ def revcomp(seq):
 
 
 def gcContent(seq):
+    """Compute the GC content fraction of a DNA sequence.
+
+    Args:
+        seq: DNA sequence string containing A, C, G, and T characters.
+
+    Returns:
+        GC fraction as a float in [0.0, 1.0].
+    """
     # Inlined util.histDict: build a frequency dict of characters
     hist = {}
     for c in seq:
@@ -392,6 +556,23 @@ KIMURA_MATRIX = [
 
 
 def evolveKimuraSeq(seq, time, alpha=1, beta=1):
+    """Evolve a DNA sequence under the Kimura two-parameter model.
+
+    Each base is independently substituted according to transition (alpha)
+    and transversion (beta) rate parameters over the given evolutionary time.
+
+    Args:
+        seq: DNA sequence string (uppercase A/C/G/T only).
+        time: Evolutionary branch length (substitutions per site).
+        alpha: Transition rate parameter (default 1).
+        beta: Transversion rate parameter (default 1).
+
+    Returns:
+        Evolved DNA sequence string of the same length as seq.
+
+    Raises:
+        AssertionError: If substitution probabilities do not sum to one.
+    """
     probs = {
         's': .25 * (1 - math.e**(-4 * beta * time)),
         'u': .25 * (1 + math.e**(-4 * beta * time)

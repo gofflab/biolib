@@ -1300,6 +1300,22 @@ def logNormalCdf(x, params):
 
 
 def poissonPdf(x, params):
+    """Evaluate the Poisson probability mass function at ``x``.
+
+    Computes the probability in log space to avoid overflow::
+
+        P(X = x) = exp(-lambda) * lambda^x / x!
+                 = exp(-lambda + sum(log(lambda/i) for i in 1..x))
+
+    Args:
+        x: The number of events (non-negative integer).
+        params: A 1-tuple or list whose first element is ``lambda``
+            (the expected number of events, must be positive).
+
+    Returns:
+        The Poisson PMF value P(X = x) as a float.  Returns 0.0 if
+        ``x < 0`` or ``lambda <= 0``.
+    """
     lambd = params[0]
 
     if x < 0 or lambd <= 0:
@@ -1312,7 +1328,26 @@ def poissonPdf(x, params):
 
 
 def poissonCdf(x, params):
-    """Cumulative distribution function of the Poisson distribution"""
+    """Evaluate the Poisson cumulative distribution function at ``x``.
+
+    Computes P(X <= x) using the regularised incomplete gamma function::
+
+        F(x; lambda) = (Gamma(floor(x+1)) - gammainc(floor(x+1), lambda))
+                       / floor(x)!
+
+    Note:
+        Not implemented accurately for large ``x`` or ``lambda``.
+
+    Args:
+        x: The upper bound (non-negative number; floor is taken
+            internally).
+        params: A 1-tuple or list whose first element is ``lambda``
+            (the expected number of events).
+
+    Returns:
+        The cumulative probability P(X <= x) as a float, or 0 if
+        ``x < 0``.
+    """
     # NOTE: not implemented accurately for large x or lambd
     lambd = params[0]
 
@@ -1324,7 +1359,19 @@ def poissonCdf(x, params):
 
 
 def poissonvariate(lambd):
-    """Sample from a Poisson distribution"""
+    """Draw a random sample from a Poisson distribution.
+
+    Uses Knuth's algorithm: generate uniform random variables and
+    multiply them together until their product falls below
+    ``exp(-lambda)``.  The count of multiplications minus one is the
+    Poisson variate.
+
+    Args:
+        lambd: The expected number of events per interval (lambda > 0).
+
+    Returns:
+        A non-negative integer drawn from Poisson(lambda).
+    """
     l = exp(-lambd)
     k = 0
     p = 1.0
@@ -1336,6 +1383,21 @@ def poissonvariate(lambd):
             return k - 1
 
 def exponentialPdf(x, params):
+    """Evaluate the Exponential(lambda) probability density function at ``x``.
+
+    Computes::
+
+        f(x; lambda) = lambda * exp(-lambda * x)   for x >= 0, lambda >= 0
+
+    Args:
+        x: The point at which to evaluate the PDF.
+        params: A 1-tuple or list whose first element is ``lambda``
+            (the rate parameter).
+
+    Returns:
+        The exponential PDF value at ``x`` as a float.  Returns 0.0 if
+        ``x < 0`` or ``lambda < 0``.
+    """
     lambd = params[0]
 
     if x < 0 or lambd < 0:
@@ -1345,6 +1407,21 @@ def exponentialPdf(x, params):
 
 
 def exponentialCdf(x, params):
+    """Evaluate the Exponential(lambda) cumulative distribution function at ``x``.
+
+    Computes::
+
+        F(x; lambda) = 1 - exp(-lambda * x)   for x >= 0, lambda >= 0
+
+    Args:
+        x: The point at which to evaluate the CDF.
+        params: A 1-tuple or list whose first element is ``lambda``
+            (the rate parameter).
+
+    Returns:
+        The cumulative probability P(X <= x) as a float.  Returns 0.0 if
+        ``x < 0`` or ``lambda < 0``.
+    """
     lambd = params[0]
 
     if x < 0 or lambd < 0:
@@ -1354,9 +1431,36 @@ def exponentialCdf(x, params):
 
 
 def exponentialvariate(lambd):
+    """Draw a random sample from an Exponential(lambda) distribution.
+
+    Uses the inverse CDF (quantile) method: if U ~ Uniform(0,1) then
+    ``-log(U) / lambda`` is Exponentially distributed with rate ``lambda``.
+
+    Args:
+        lambd: The rate parameter (lambda > 0).
+
+    Returns:
+        A non-negative float drawn from Exponential(lambda).
+    """
     return -log(random.random()) / lambd
 
 def gammaPdf(x, params):
+    """Evaluate the Gamma(alpha, beta) probability density function at ``x``.
+
+    Uses the rate (inverse-scale) parameterisation::
+
+        f(x; alpha, beta) = beta^alpha * x^(alpha-1) * exp(-beta*x)
+                            / Gamma(alpha)
+
+    Args:
+        x: The point at which to evaluate the PDF.  Must be positive.
+        params: A 2-tuple ``(alpha, beta)`` — the shape and rate
+            parameters.  Both must be positive.
+
+    Returns:
+        The gamma PDF value at ``x`` as a float.  Returns 0.0 if any of
+        ``x``, ``alpha``, or ``beta`` is non-positive.
+    """
     alpha, beta = params
     if x <= 0 or alpha <= 0 or beta <= 0:
         return 0.0
@@ -1365,6 +1469,22 @@ def gammaPdf(x, params):
            gamma(alpha)
 
 def gammaPdf2(x, params):
+    """Evaluate the Gamma(alpha, beta) PDF at ``x`` using log-space arithmetic.
+
+    Numerically more stable than :func:`gammaPdf` for large parameter
+    values.  Computes the same distribution in log space::
+
+        log f = -x*beta + (alpha-1)*log(x) + alpha*log(beta) - gammaln(alpha)
+
+    Args:
+        x: The point at which to evaluate the PDF.  Must be positive.
+        params: A 2-tuple ``(alpha, beta)`` — the shape and rate
+            parameters (rate parameterisation).  Both must be positive.
+
+    Returns:
+        The gamma PDF value at ``x`` as a float.  Returns 0.0 if any of
+        ``x``, ``alpha``, or ``beta`` is non-positive.
+    """
     alpha, beta = params
     if x <= 0 or alpha <= 0 or beta <= 0:
         return 0.0
@@ -1374,6 +1494,21 @@ def gammaPdf2(x, params):
 
 
 def gammaCdf(x, params):
+    """Evaluate the Gamma(alpha, beta) cumulative distribution function at ``x``.
+
+    Computes P(X <= x) using the lower incomplete gamma function::
+
+        F(x; alpha, beta) = gammainc(alpha, x*beta) / Gamma(alpha)
+
+    Args:
+        x: The point at which to evaluate the CDF.
+        params: A 2-tuple ``(alpha, beta)`` — the shape and rate
+            parameters (rate parameterisation).  Both must be positive.
+
+    Returns:
+        The cumulative probability P(X <= x) as a float.  Returns 0 if
+        ``x <= 0``.
+    """
     alpha, beta = params
     if x <= 0:
         return 0
@@ -1382,10 +1517,27 @@ def gammaCdf(x, params):
 
 
 def betaPdf2(x, params):
-    """A simpler implementation of beta distribution but will overflow
-       for values of alpha and beta near 100
-    """
+    """Evaluate the Beta(alpha, beta) PDF at ``x`` using direct gamma computation.
 
+    Simpler but less numerically stable than :func:`betaPdf`; will
+    overflow for ``alpha`` or ``beta`` values near 100 because it
+    evaluates ``Gamma(alpha + beta)`` directly.
+
+    Formula::
+
+        f(x; alpha, beta) = Gamma(alpha+beta) / (Gamma(alpha)*Gamma(beta))
+                            * x^(alpha-1) * (1-x)^(beta-1)
+
+    Args:
+        x: The point at which to evaluate the PDF.  Must satisfy
+            ``0 < x < 1``.
+        params: A 2-tuple ``(alpha, beta)`` — the shape parameters, both
+            must be positive.
+
+    Returns:
+        The beta PDF value at ``x`` as a float.  Returns 0.0 if ``x``
+        is outside (0, 1) or if either shape parameter is non-positive.
+    """
     alpha, beta = params
     if 0 < x < 1 and alpha > 0 and beta > 0:
         return gamma(alpha + beta) / (gamma(alpha)*gamma(beta)) * \
@@ -1394,6 +1546,24 @@ def betaPdf2(x, params):
         return 0.0
 
 def betaPdf(x, params):
+    """Evaluate the Beta(alpha, beta) PDF at ``x`` using log-gamma arithmetic.
+
+    Numerically stable implementation that avoids overflow by computing
+    the PDF in log space::
+
+        log f = gammaln(alpha+beta) - gammaln(alpha) - gammaln(beta)
+                + (alpha-1)*log(x) + (beta-1)*log(1-x)
+
+    Args:
+        x: The point at which to evaluate the PDF.  Must satisfy
+            ``0 < x < 1``.
+        params: A 2-tuple ``(alpha, beta)`` — the shape parameters, both
+            must be positive.
+
+    Returns:
+        The beta PDF value at ``x`` as a float.  Returns 0.0 if ``x``
+        is outside (0, 1) or if either shape parameter is non-positive.
+    """
     alpha, beta = params
 
     if 0 < x < 1 and alpha > 0 and beta > 0:
