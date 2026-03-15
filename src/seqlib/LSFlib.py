@@ -334,6 +334,18 @@ class LSFJob(object):
 #Helper functions
 ##############
 def tmp_name(prefix):
+	"""Generates a unique temporary file path inside a local 'tmp/' directory.
+
+	Creates the 'tmp/' directory in the current working directory if it does
+	not already exist, then returns a path of the form
+	'tmp/<prefix><random_suffix>'.
+
+	Args:
+		prefix: String prefix for the temporary file name.
+
+	Returns:
+		A string file path for a temporary file that does not yet exist.
+	"""
 	import tempfile
 	tmp_root = "tmp/"
 	if os.path.exists(tmp_root):
