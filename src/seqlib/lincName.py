@@ -1,9 +1,22 @@
 #!/usr/bin/env python
-'''
-Created on Aug 27, 2010
+"""Assigns systematic names to lincRNA loci based on proximity to RefSeq genes.
 
-@author: lgoff
-'''
+Implements the naming scheme described in Guttman et al. for long intergenic
+non-coding RNA (lincRNA) loci:
+
+- If the 5' end of a lincRNA overlaps the 5' end of a protein-coding gene on
+  the opposite strand by less than the overlap threshold, the lincRNA is named
+  'linc-<GENE>-BP' (bidirectional promoter).
+- If a lincRNA overlaps any protein-coding gene on the opposite strand without
+  satisfying the bidirectional criterion, it is named 'linc-<GENE>-AS'
+  (antisense).
+- Otherwise, the lincRNA is named after the nearest downstream protein-coding
+  gene on the same strand: 'linc-<GENE>' (single lincRNA) or
+  'linc-<GENE>-<N>' (multiple lincRNAs near the same gene).
+
+Requires GTFlib, dbConn, and intervallib packages, and a connection to the
+UCSC genome browser MySQL server.
+"""
 
 ############
 #Imports
@@ -45,7 +58,17 @@ Options:
 #Classes
 ############
 class Usage(Exception):
+    """Exception raised for command-line usage errors in lincName.
+
+    Attributes:
+        msg: Human-readable explanation of the error or the help message.
+    """
     def __init__(self, msg):
+        """Initialises a Usage exception.
+
+        Args:
+            msg: Human-readable error or help text.
+        """
         self.msg = msg
 
 
@@ -54,7 +77,29 @@ class Usage(Exception):
 ############
 
 def test5PrimeOverlap(lincInt,geneInt):
-    """May need to validate this.  I'm not sure this works when a lincRNA completely covers a PC gene on the opposite strand"""
+    """Determines whether the overlap between a lincRNA and a gene is at the lincRNA 5' end.
+
+    Tests whether a lincRNA interval overlaps a protein-coding gene such that
+    the overlap is at the 5' end of the lincRNA (and also involves the 5' end
+    of the gene on the opposite strand).  Used to identify bidirectional
+    promoter pairs.
+
+    Note: may not give correct results when a lincRNA completely spans a
+    protein-coding gene on the opposite strand.
+
+    Args:
+        lincInt: An interval object for the lincRNA with strand, start, and
+            end attributes.
+        geneInt: An interval object for the overlapping protein-coding gene
+            with strand, start, and end attributes.
+
+    Returns:
+        True if the overlap is at the 5' end of lincInt; False otherwise.
+
+    Raises:
+        AssertionError: If the two intervals do not overlap.
+        ValueError: If the strand of lincInt cannot be determined.
+    """
     assert lincInt.overlaps(geneInt)
     if lincInt.strand == "+":
         if lincInt.start <= geneInt.end and lincInt.end > geneInt.end:
@@ -70,6 +115,22 @@ def test5PrimeOverlap(lincInt,geneInt):
         raise ValueError("Could not determine")
 
 def bpOverlap(lincInt,geneInt):
+    """Returns the number of base pairs of overlap between two genomic intervals.
+
+    Sorts the four boundary coordinates and computes the inner distance as the
+    length of the shared region.
+
+    Args:
+        lincInt: An interval object with start and end attributes.
+        geneInt: An interval object with start and end attributes that must
+            overlap with lincInt.
+
+    Returns:
+        Integer number of overlapping base pairs between the two intervals.
+
+    Raises:
+        AssertionError: If the two intervals do not overlap.
+    """
     assert lincInt.overlaps(geneInt), "%s and %s do not overlap" % (lincInt.name,geneInt.name)
     bounds = [lincInt.start,lincInt.end,geneInt.start,geneInt.end]
     bounds.sort()
@@ -78,6 +139,13 @@ def bpOverlap(lincInt,geneInt):
     return overlap
 
 def printLincs(handle,lincs):
+    """Writes a collection of lincRNA GTF records to a file handle.
+
+    Args:
+        handle: Writable file-like object to receive the GTF output.
+        lincs: Iterable of lincRNA objects, each exposing a getGTF() method
+            that returns a GTF-formatted string.
+    """
     for linc in lincs:
         print(linc.getGTF(), end=' ', file=handle)
 

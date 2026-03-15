@@ -154,18 +154,54 @@ class Well:
         return
 
     def CP_FDM(self):
+        """Compute the crossing-point by the First Derivative Maximum (FDM) method.
+
+        Calculates the cycle number at which the first derivative of the
+        fitted 4PL curve is maximised, stored in ``self.FDM``.
+
+        Returns:
+            The FDM crossing-point cycle number as a float.
+        """
         self.FDM = (self.x0*nthRoot(((self.b-1)/(self.b+1)),self.b))
         return self.FDM
 
     def CP_SDM(self):
+        """Compute the crossing-point by the Second Derivative Maximum (SDM) method.
+
+        Calculates the cycle number at which the second derivative of the
+        fitted 4PL curve is maximised, stored in ``self.SDM``.
+
+        Returns:
+            The SDM crossing-point cycle number as a float.
+        """
         self.SDM = self.x0*nthRoot((np.sqrt((3*self.b**2)*(self.b**2-1))-(2*(1-self.b**2)))/((self.b**2)+(3*self.b)+2),self.b)
         return self.SDM
 
     def CP_SPE(self):
+        """Compute the crossing-point by the Signal-to-Noise method (SPE).
+
+        Calculates the cycle at which the fluorescence signal exceeds the
+        baseline noise by a factor of ``a / RNoise``, stored in ``self.SPE``.
+        Requires that ``fitPCRCurve`` has been called so that ``RNoise`` is
+        available.
+
+        Returns:
+            The SPE crossing-point cycle number as a float.
+        """
         self.SPE = (self.x0*nthRoot(((self.a-self.RNoise)/self.RNoise),self.b))
         return self.SPE
 
     def iterativeNLR(self):
+        """Perform iterative nonlinear regression over the exponential phase window.
+
+        Uses the SPE and SDM crossing-point estimates to define the lower and
+        upper cycle boundaries of the exponential phase. Enumerates all
+        sub-windows of size >= ``windowSize`` within that range using
+        combinatorics and stores the window indices in ``self.winIdx``.
+
+        Requires that ``CP_SPE`` and ``CP_SDM`` have been called first to
+        populate ``self.SPE`` and ``self.SDM``.
+        """
         self.lowerCycleNum = int(self.SPE)
         self.upperCycleNum = int(self.SDM)
         self.regPoints = self.upperCycleNum-self.lowerCycleNum+1
@@ -182,7 +218,21 @@ class Well:
 #Parsing
 ##########################
 def parseRawABI(fname):
-    """This replaces parseData"""
+    """Parse a raw ABI results file into a dict of Well objects keyed by well number.
+
+    Replaces the simpler ``parseData`` function. Handles the multi-section ABI
+    export format: skips the first line, collects key/value header metadata,
+    then reads data rows until EOF. Rows with an ``"Undetermined"`` Ct value
+    are skipped. Quality-flag columns (indices 17 onwards) are stored in each
+    ``Well.flags`` dict.
+
+    Args:
+        fname: Path to the raw ABI tab-delimited results export file.
+
+    Returns:
+        A dict ``{well_number (int): Well}`` for every well with a valid
+        numeric Ct value.
+    """
     dictKeys = ['well','sample','detector','reporter','task','Ct','quantity','Qty Mean','Qty StdDev','Ct Median','Ct Mean','Ct StdDev','Baseline Type','Baseline Start','Baseline Stop','Threshold Type','threshold','FOS','HMD','LME','EW','BPR','NAW','HNS','HRN','EAF','BAF','TAF','CAF']
     handle = open(fname,'r')
     header = {}
@@ -238,7 +288,18 @@ def parseRawABI(fname):
     assert False, "Should not reach this line..."
 
 def parseRawCycle(fname,wellData):
-    """This replaces parseCycleData"""
+    """Parse a raw ABI cycle fluorescence file and populate the matching Well objects.
+
+    Replaces the simpler ``parseCycleData`` function. Reads fluorescence
+    readings up to (but not including) the ``"Delta Rn"`` column and writes
+    ``cycles`` and ``fluorData`` directly onto the corresponding ``Well``
+    objects in ``wellData``.
+
+    Args:
+        fname: Path to the raw ABI cycle data tab-delimited export file.
+        wellData: Dict ``{well_number: Well}`` as returned by
+            ``parseRawABI``. Modified in-place.
+    """
     handle = open(fname,'r')
     handle.readline()#Remove first line
     headerRow = handle.readline()
@@ -254,12 +315,33 @@ def parseRawCycle(fname,wellData):
     return
 
 def getDetAndSamp(wellData):
-    """Returns two lists of unique detectors and unique samples"""
+    """Return lists of unique detector and sample names from a collection of Well objects.
+
+    Uses ``util.uniqify`` to deduplicate; result order is not guaranteed to
+    be preserved (depends on dict key ordering).
+
+    Args:
+        wellData: An iterable of ``Well`` objects (e.g., the values of the
+            dict returned by ``parseRawABI``).
+
+    Returns:
+        A tuple ``(detectors, samples)`` where each element is a list of
+        unique string names.
+    """
     detectors = util.uniqify(detectors = [x.detector for x in wellData])
     samples = util.uniqify(samples = [x.sample for x in wellData])
     return detectors,samples
 
 def wellIndex(data):
+    """Build a list of well numbers in the same order as the data list.
+
+    Args:
+        data: List of well dicts, each containing a ``well`` key.
+
+    Returns:
+        A list of integer well numbers corresponding positionally to each
+        entry in ``data``.
+    """
     index = []
     for i in range(len(data)):
         index.append(data[i]['well'])
@@ -269,6 +351,17 @@ def wellIndex(data):
 #Get User Input
 ######################
 def getEndoControl(detectors):
+    """Interactively prompt the user to select an endogenous control detector.
+
+    Prints a numbered list of detector names and reads an integer choice from
+    standard input.
+
+    Args:
+        detectors: List of detector name strings to present to the user.
+
+    Returns:
+        The detector name string chosen by the user.
+    """
     myString = "Please choose an endogenous control:\n"
     for i in range(0,len(detectors)):
         myString = myString+"\t(%d):\t%s\n" % (i,detectors[i])
@@ -277,6 +370,17 @@ def getEndoControl(detectors):
     return detectors[choice]
 
 def getReference(samples):
+    """Interactively prompt the user to select a reference sample.
+
+    Prints a numbered list of sample names and reads an integer choice from
+    standard input.
+
+    Args:
+        samples: List of sample name strings to present to the user.
+
+    Returns:
+        The sample name string chosen by the user.
+    """
     myString = "Please choose a reference sample:\n"
     for i in range(0,len(samples)):
         myString = myString + "\t(%d):\t%s\n" % (i,samples[i])
@@ -289,6 +393,20 @@ def getReference(samples):
 #####################################
 
 def aggregateReplicateCts(data):
+    """Aggregate replicate Ct values per sample/detector pair using the median.
+
+    Groups raw per-well Ct values by (sample, detector) and computes the
+    median Ct for each combination. ``"N/A"`` values (from undetermined wells
+    that slipped through) are silently dropped by the ``median`` helper.
+
+    Args:
+        data: List of well dicts, each containing ``sample``, ``detector``,
+            and ``Ct`` keys.
+
+    Returns:
+        A nested dict ``{sample: {detector: median_Ct}}`` where each value
+        is the median Ct (float or ``"N/A"`` if all replicates are missing).
+    """
     #This will have to change...
     #TODO: make this aggregate either Ct values or N0 values?
     tmp = {}
@@ -311,48 +429,142 @@ def aggregateReplicateCts(data):
 #####################################
 
 def getLogVals(myArray):
+    """Return the base-10 logarithm of each element in a numpy array.
+
+    Args:
+        myArray: A numpy array of positive numeric values.
+
+    Returns:
+        A numpy array of the same shape containing log10 of each input value.
+    """
     return np.log10(myArray)
 
 #########
 # Four-parameter Logistic Model fitting
 #########
 def nthRoot(num,n):
+    """Compute the nth root of a number.
+
+    Args:
+        num: The base value (numeric).
+        n: The root degree (numeric, must not be zero).
+
+    Returns:
+        ``num ** (1.0 / n)`` as a float.
+    """
     return num ** (1.0/n)
 
 def qpcrFit(x,a,b,x0,y0):
-    """Same as fit but designed to run with optimize.curve_fit"""
+    """Evaluate the four-parameter logistic (4PL) model for qPCR fluorescence data.
+
+    Implements the model from Zhao et al.:
+        f(x) = y0 + a / (1 + (x / x0)^b)
+
+    Designed for use with ``scipy.optimize.curve_fit``.
+
+    Args:
+        x: Cycle number (scalar or array).
+        a: Amplitude parameter (difference between upper and lower
+           asymptotes).
+        b: Slope/steepness parameter.
+        x0: Inflection point (cycle at the midpoint of the curve).
+        y0: Baseline fluorescence (lower asymptote).
+
+    Returns:
+        Predicted fluorescence value(s) at cycle ``x``.
+    """
     return (y0+(a/(1+((x/x0)**b))))
 
 def qpcrFitResiduals(x,y,a,b,x0,y0):
-    """
-    Residuals:
-    errfunc = lambda p,x,y: y-fitfunc(p,x) #Distance to the target function (residuals)
+    """Compute residuals between observed fluorescence and the 4PL model.
+
+    Calculates ``y - qpcrFit(x, a, b, x0, y0)``.
+
+    Args:
+        x: Cycle number(s) (scalar or array).
+        y: Observed fluorescence value(s).
+        a: Amplitude parameter.
+        b: Slope/steepness parameter.
+        x0: Inflection point (cycle at midpoint).
+        y0: Baseline fluorescence (lower asymptote).
+
+    Returns:
+        Residual value(s) ``y - predicted``.
     """
     return y-qpcrFit(x,a,b,x0,y0)
 
 def CP_FDM(p):
+    """Compute the crossing-point using the First Derivative Maximum (FDM) method.
+
+    Args:
+        p: Sequence of four fitted 4PL parameters ``[a, b, x0, y0]``.
+
+    Returns:
+        The FDM crossing-point cycle number as a float.
+    """
     return (p[2]*nthRoot(((p[1]-1)/(p[1]+1)),p[1]))
 
 def CP_SDM(p):
+    """Compute the crossing-point using the Second Derivative Maximum (SDM) method.
+
+    Args:
+        p: Sequence of four fitted 4PL parameters ``[a, b, x0, y0]``.
+
+    Returns:
+        The SDM crossing-point cycle number as a float.
+    """
     return p[2]*nthRoot((np.sqrt((3*p[1]**2)*(p[1]**2-1))-(2*(1-p[1]**2)))/((p[1]**2)+(3*p[1])+2),p[1])
 
 def CP_SPE(p,rNoise):
+    """Compute the crossing-point using the Signal-to-Noise (SPE) method.
+
+    Args:
+        p: Sequence of four fitted 4PL parameters ``[a, b, x0, y0]``.
+        rNoise: Baseline noise estimate (standard error of the ``y0``
+            parameter, i.e., ``RNoise``).
+
+    Returns:
+        The SPE crossing-point cycle number as a float.
+    """
     return (p[2]*nthRoot(((p[0]-rNoise)/rNoise),p[1]))
 
 ###############################
 #Iterative Nonlinear Regression
 ###############################
 def nlmFit(x,a,b,y0):
-    """
-    Non-linear regression function to optimize for windows in exponential phase
-    here p = [a,b,y0]
+    """Evaluate the exponential nonlinear regression model for the exponential phase.
+
+    Models the exponential amplification phase as:
+        f(x) = y0 + a * (b ^ x)
+
+    Used for iterative nonlinear regression (iNLR) on windows within the
+    exponential phase. Parameters are ``[a, b, y0]``.
+
+    Args:
+        x: Cycle number (scalar or array).
+        a: Amplitude scaling factor.
+        b: Per-cycle amplification factor (related to efficiency: b ~ E).
+        y0: Baseline offset.
+
+    Returns:
+        Predicted fluorescence value(s) at cycle ``x``.
     """
     return y0+(a*(b**x))
 
 def nlmFitResiduals(x,y,a,b,y0):
-    """
-    Residuals:
-    errfunc = lambda p,x,y: y-nlmFit(p,x) #Distance to the target function (residuals)
+    """Compute residuals between observed fluorescence and the exponential NLM model.
+
+    Calculates ``y - nlmFit(x, a, b, y0)``.
+
+    Args:
+        x: Cycle number(s) (scalar or array).
+        y: Observed fluorescence value(s).
+        a: Amplitude scaling factor.
+        b: Per-cycle amplification factor.
+        y0: Baseline offset.
+
+    Returns:
+        Residual value(s) ``y - predicted``.
     """
     return y-nlmFit(x,a,b,y0)
 
@@ -361,6 +573,30 @@ def nlmFitResiduals(x,y,a,b,y0):
 #ddCt math
 ###############################
 def ddCt(data,medianCts,endoControl,reference):
+    """Compute delta-Ct and delta-delta-Ct values for each well.
+
+    For each well, dCt is calculated as:
+        dCt = Ct - median_Ct(sample, endoControl)
+
+    If the endogenous control Ct is unavailable for a sample, dCt is set to
+    ``"N/A"``. ddCt is then calculated as:
+        ddCt = dCt - median_dCt(reference, detector)
+
+    If the reference dCt is unavailable, ddCt is set to ``"N/A"``.
+
+    Args:
+        data: List of well dicts, each containing ``sample``, ``detector``,
+            and ``Ct`` keys.
+        medianCts: Nested dict ``{sample: {detector: median_Ct}}`` as
+            returned by ``aggregateReplicateCts``.
+        endoControl: Name of the endogenous control detector to use for
+            normalization.
+        reference: Name of the reference sample to use for ddCt calculation.
+
+    Returns:
+        The ``data`` list with ``dCt`` and ``ddCt`` keys added to each well
+        dict (values are floats or ``"N/A"``).
+    """
     tmp = {}
     #Calculate dCts
     for i in range(len(data)):
@@ -391,9 +627,37 @@ def ddCt(data,medianCts,endoControl,reference):
     return data
 
 def JohnsMethod(data,medianCts,endoControl,reference):
+    """Placeholder for an alternative relative quantification method.
+
+    Not yet implemented.
+
+    Args:
+        data: List of well dicts.
+        medianCts: Nested dict of median Ct values per sample/detector.
+        endoControl: Name of the endogenous control detector.
+        reference: Name of the reference sample.
+    """
     pass
 
 def RQ(data,effs):
+    """Calculate relative quantification (RQ) values for each well.
+
+    RQ is computed as:
+        RQ = meanEfficiency ^ (-ddCt)
+
+    Wells with a ``"N/A"`` ddCt or a missing efficiency entry receive
+    ``"N/A"`` for RQ.
+
+    Args:
+        data: List of well dicts containing ``detector`` and ``ddCt`` keys,
+            as returned by ``ddCt``.
+        effs: Dict ``{detector: {'meanEff': float, ...}}`` as returned by
+            ``summarizeEfficiencies``.
+
+    Returns:
+        The ``data`` list with an ``RQ`` key added to each well dict
+        (float or ``"N/A"``).
+    """
     res = []
     for d in data:
         try:
@@ -411,7 +675,14 @@ def RQ(data,effs):
 ###############################
 
 def mean(vals):
-    """Computes the mean of a list of numbers"""
+    """Compute the arithmetic mean of a list of numbers.
+
+    Args:
+        vals: An iterable of numeric values.
+
+    Returns:
+        The arithmetic mean as a float.
+    """
     n = 0
     s = 0.0
     for i in vals:
@@ -420,7 +691,19 @@ def mean(vals):
     return s / float(n)
 
 def median(vals):
-    """Computes the median of a list of numbers"""
+    """Compute the median of a list, ignoring any ``"N/A"`` sentinel values.
+
+    Filters out ``"N/A"`` entries before sorting. Sorts the remaining values
+    in-place. Returns ``"N/A"`` if no numeric values remain after filtering.
+
+    Args:
+        vals: A list that may contain numeric values and/or the string
+            ``"N/A"``.
+
+    Returns:
+        The median numeric value as a float, or the string ``"N/A"`` if all
+        values are ``"N/A"``.
+    """
     print(vals)
     vals = [i for i in vals if i != "N/A"]
     print(vals)
@@ -434,17 +717,46 @@ def median(vals):
         return vals[lenvals // 2]
 
 def variance(vals):
-    """Variance"""
+    """Compute the sample variance of a list of numbers.
+
+    Uses Bessel's correction (divides by N-1).
+
+    Args:
+        vals: A list of numeric values with at least two elements.
+
+    Returns:
+        The sample variance as a float.
+    """
     u = mean(vals)
     return sum((x - u)**2 for x in vals) / float(len(vals)-1)
 
 def sdev(vals):
-    """Standard deviation"""
+    """Compute the sample standard deviation of a list of numbers.
+
+    Returns 0.0 for lists with one or fewer elements.
+
+    Args:
+        vals: A list of numeric values.
+
+    Returns:
+        The sample standard deviation as a float.
+    """
     if len(vals) <=1: return 0.0
     return math.sqrt(variance(vals))
 
 def covariance(lst1, lst2):
-    """Covariance"""
+    """Compute the sample covariance between two equal-length lists.
+
+    Uses Bessel's correction (divides by N-1).
+
+    Args:
+        lst1: First list of numeric values.
+        lst2: Second list of numeric values; must be the same length as
+            ``lst1``.
+
+    Returns:
+        The sample covariance as a float.
+    """
     m1 = mean(lst1)
     m2 = mean(lst2)
     tot = 0.0
@@ -453,7 +765,21 @@ def covariance(lst1, lst2):
     return tot / (len(lst1)-1)
 
 def corr(lst1, lst2):
-    """Pearson's Correlation"""
+    """Compute the Pearson correlation coefficient between two lists.
+
+    Returns a very large number (1e1000) when the denominator is zero
+    (i.e., one or both lists have zero variance), used as a sentinel for
+    a perfect linear relationship in the sliding-window search.
+
+    Args:
+        lst1: First list of numeric values.
+        lst2: Second list of numeric values; must be the same length as
+            ``lst1``.
+
+    Returns:
+        The Pearson correlation coefficient as a float, or 1e1000 when the
+        standard deviation of either list is zero.
+    """
     num = covariance(lst1, lst2)
     denom = float(sdev(lst1) * sdev(lst2))
     if denom != 0:
@@ -462,13 +788,38 @@ def corr(lst1, lst2):
         return 1e1000
 
 def slope(xarray,yarray):
-    """Uses numpy, in fact assumes that the list arguments are numpy arrays."""
+    """Compute the ordinary least-squares regression slope.
+
+    Uses the standard closed-form formula. Requires numpy arrays because
+    element-wise multiplication (``xarray * yarray``) and vectorized
+    ``sum`` are used.
+
+    Args:
+        xarray: Numpy array of independent variable values.
+        yarray: Numpy array of dependent variable values; must be the same
+            length as ``xarray``.
+
+    Returns:
+        The regression slope as a float.
+    """
     n = float(len(xarray))
     m = (n*sum(xarray*yarray)-sum(xarray)*sum(yarray))/(n*sum(xarray**2)-(sum(xarray))**2)
     return m
 
 def intercept(xarray,yarray):
-    """Uses numpy, in fact assumes that the list arguments are numpy arrays."""
+    """Compute the ordinary least-squares regression intercept.
+
+    Uses the standard closed-form formula given the slope. Requires numpy
+    arrays because vectorized ``sum`` is used.
+
+    Args:
+        xarray: Numpy array of independent variable values.
+        yarray: Numpy array of dependent variable values; must be the same
+            length as ``xarray``.
+
+    Returns:
+        The regression intercept (y-axis) as a float.
+    """
     m = slope(xarray,yarray)
     n = float(len(xarray))
     b = (sum(yarray)-m*(sum(xarray)))/n
@@ -479,9 +830,35 @@ def intercept(xarray,yarray):
 ###############################
 
 def flagBadDetectors():
+    """Flag detectors with poor amplification characteristics.
+
+    Not yet implemented.
+    """
     pass
 
 def aggregateResults(data):
+    """Aggregate per-well RQ, N0, and dCt values into per-(sample, detector) summaries.
+
+    Computes mean, median, and standard deviation of RQ, dCt, and N0
+    for every (sample, detector) combination across all replicate wells.
+    Wells with ``"N/A"`` RQ are excluded from RQ and dCt summaries; N0
+    is always summarised.
+
+    Args:
+        data: List of well dicts containing ``sample``, ``detector``,
+            ``RQ``, ``N0``, and ``dCt`` keys, as returned by ``RQ``.
+
+    Returns:
+        A nested dict ``{sample: {detector: stats_dict}}`` where
+        ``stats_dict`` contains the keys: ``medianRQ``, ``meanRQ``,
+        ``sdevRQ``, ``mediandCt``, ``meandCt``, ``sdevdCt``,
+        ``medianN0``, ``meanN0``, ``sdevN0``. Unavailable values are
+        represented as ``"N/A"``.
+
+    Raises:
+        KeyError: If ``RQ`` values have not yet been computed on the data
+            (i.e., ``ddCt`` and ``RQ`` have not been called first).
+    """
     try:
         data[0]['RQ']
     except KeyError:
@@ -545,6 +922,22 @@ def aggregateResults(data):
     return res
 
 def printDataFrameRQs(RQsummary,effs,outFile):
+    """Write a tab-delimited summary of RQ results to a file and to stdout.
+
+    Outputs one row per (sample, detector) combination with columns:
+    Sample, Detector, meanEff, meanRQ, sdevRQ, medianRQ, meandCt,
+    mediandCt, sdevdCt, quant, ci.l, ci.u.
+
+    The ``quant`` column is efficiency^(-mediandCt); ``ci.l`` and ``ci.u``
+    are efficiency^(-(mediandCt +/- sdevdCt)), providing approximate
+    confidence intervals.
+
+    Args:
+        RQsummary: Nested dict as returned by ``aggregateResults``.
+        effs: Dict ``{detector: {'meanEff': float, ...}}`` as returned by
+            ``summarizeEfficiencies``.
+        outFile: Path to the output file to write.
+    """
     #Open out Handle
     outHandle = open(outFile,'w')
     #Print header row
@@ -563,16 +956,58 @@ def printDataFrameRQs(RQsummary,effs,outFile):
 #TODO:Create R Function to plot output from printDataFramRQs()
 
 def plotRQs(results):
+    """Plot relative quantification (RQ) values.
+
+    Not yet implemented.
+
+    Args:
+        results: Aggregated results dict as returned by ``aggregateResults``.
+    """
     pass
 
 def plotEdCt(results):
+    """Plot efficiency-corrected delta-Ct (EdCt) values.
+
+    Not yet implemented.
+
+    Args:
+        results: Aggregated results dict as returned by ``aggregateResults``.
+    """
     pass
 
 def doPlotting(plotScript = "qPCRPlotting.q"):
+    """Execute an external R plotting script as a subprocess.
+
+    Args:
+        plotScript: Path to the R script to execute. Defaults to
+            ``"qPCRPlotting.q"``.
+
+    Returns:
+        A tuple ``(status, output)`` as returned by
+        ``subprocess.getstatusoutput``.
+    """
     return subprocess.getstatusoutput(plotScript)
 
 
 def makeDvsS(results,detectors,samples,value = "mediandCt"):
+    """Build a detector-by-sample matrix of a chosen summary statistic.
+
+    Creates a 2-D numpy array indexed by detector (rows) and sample
+    (columns). Missing (sample, detector) combinations are filled with
+    ``nan``.
+
+    Args:
+        results: Nested dict ``{sample: {detector: stats_dict}}`` as
+            returned by ``aggregateResults``.
+        detectors: Ordered list of detector names defining the row order.
+        samples: Ordered list of sample names defining the column order.
+        value: Key within the innermost stats dict to extract. Defaults to
+            ``"mediandCt"``.
+
+    Returns:
+        A numpy float array of shape ``(len(detectors), len(samples))``
+        containing the requested statistic for each cell.
+    """
     matrix = np.zeros((len(detectors),len(samples)),float)
     for d in range(0,len(detectors)):
         for s in range(0,len(samples)):
@@ -587,6 +1022,17 @@ def makeDvsS(results,detectors,samples,value = "mediandCt"):
 ##############################
 
 def main(mainFile,cycleFile):
+    """Run the full qPCR analysis pipeline interactively.
+
+    Parses results and cycle-data files using the raw ABI format parsers,
+    computes efficiencies, interactively asks the user to select an endogenous
+    control and reference sample, performs ddCt/RQ calculations, writes
+    ``output.txt``, and runs the external plotting script.
+
+    Args:
+        mainFile: Path to the raw ABI tab-delimited results export file.
+        cycleFile: Path to the raw ABI cycle fluorescence export file.
+    """
     #Parse mainFile
     print("Parsing Results File...")
     data = parseRawABI(mainFile)
@@ -623,6 +1069,17 @@ def main(mainFile,cycleFile):
     return
 
 def test():
+    """Run a manual integration test using hard-coded HeLa RIP data files.
+
+    Parses ``'RIP HeLa clipped.txt'`` and ``'new_RIP_HeLa.txt'``, runs the
+    full ddCt/RQ pipeline with hard-coded endogenous control (``'hGAPDH'``)
+    and reference sample (``'IgG RIP'``), writes ``output.txt``, and
+    returns a detector-by-sample matrix of mediandCt values.
+
+    Returns:
+        A numpy float array of shape ``(n_detectors, n_samples)`` containing
+        the mediandCt for each (detector, sample) combination.
+    """
     cycleData = parseCycleData('RIP HeLa clipped.txt')
     cycleData = calculateEfficiencies(cycleData)
     effs = summarizeEfficiencies(cycleData)

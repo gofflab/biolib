@@ -1,8 +1,10 @@
-'''
-Created on Jun 3, 2010
+"""Utilities for processing lincRNA (long intergenic non-coding RNA) transcript models.
 
-@author: lgoff
-'''
+Processes BED-format lincRNA annotations to fetch spliced sequences, insert
+records into a MySQL database, generate transcript model PNG plots, and export
+sequences to FASTA format.  Requires a local MySQL instance at the Broad
+Institute and the intervallib package.
+"""
 import os
 import sys
 
@@ -13,7 +15,18 @@ import MySQLdb
 
 
 def main(bedFile,lincLotID):
-    
+    """Processes a BED file of lincRNA models and inserts them into the database.
+
+    For each transcript in the BED file, fetches its spliced sequence,
+    creates a PNG transcript model plot, and bulk-inserts all records into the
+    lgoff_nextgen MySQL database using mysqlimport.
+
+    Args:
+        bedFile: Path to a BED-format file of lincRNA transcript models.
+        lincLotID: Integer identifier for the lincRNA lot/batch being
+            processed; used as a foreign key in the database insert.
+    """
+
     #Setup environment
     if not os.path.exists('transcriptModels'):
         os.mkdir('transcriptModels')
@@ -56,6 +69,19 @@ def main(bedFile,lincLotID):
     return
 
 def drawModelPNG(bedRecord,outDir=os.getcwd(),verbose=False):
+    """Generates a PNG transcript model image for a single BED record.
+
+    Delegates to the BED record's makePNG method and optionally prints
+    progress information to stdout.
+
+    Args:
+        bedRecord: An intervallib BED interval object that exposes a
+            makePNG(outDir) method and a name attribute.
+        outDir: Directory path where the PNG file will be written
+            (default: current working directory).
+        verbose: If True, print status messages indicating which transcript
+            model is being drawn (default: False).
+    """
     if verbose:
         print("Making transcript model plot...")
     bedRecord.makePNG(outDir)
@@ -64,7 +90,19 @@ def drawModelPNG(bedRecord,outDir=os.getcwd(),verbose=False):
     return
 
 def insertRecord(lincRNA,lincLotID):
-    """Does not work for some reason..."""
+    """Inserts a single lincRNA transcript record into the database.
+
+    Constructs and executes an INSERT SQL statement for the transcripts table.
+    The function references a module-level db cursor variable which must be
+    set before calling.  Note: this function is known to be non-functional;
+    use the bulk mysqlimport approach in main() instead.
+
+    Args:
+        lincRNA: An intervallib interval object with attributes: name, chr,
+            start, end, strand, exonLengths, exonOffsets, and splicedSequence.
+        lincLotID: Integer lot identifier to associate with the transcript
+            record in the database.
+    """
     
     cursor = db.cursor()
     insert="INSERT INTO transcripts VALUES (NULL,'%s','%s','%d','%d','%s','%s','%s','%s','%d');" % (lincRNA.name,lincRNA.chr,lincRNA.start,lincRNA.end,lincRNA.strand,",".join([str(x) for x in lincRNA.exonLengths]),",".join([str(x) for x in lincRNA.exonOffsets]),lincRNA.splicedSequence,int(lincLotID))
@@ -77,6 +115,14 @@ def insertRecord(lincRNA,lincLotID):
     return
 
 def getDb():
+    """Opens and returns a connection to the Broad Institute MySQL database.
+
+    Connects to the lgoff_nextgen database on mysql.broadinstitute.org with
+    a hard-coded user and empty password.
+
+    Returns:
+        A MySQLdb connection object for the lgoff_nextgen database.
+    """
     host="mysql.broadinstitute.org"
     user="lgoff"
     password=""

@@ -33,52 +33,83 @@ INF = float("1e1000")
 
 # Python 3 compatibility: cmp() was removed
 def cmp(a, b):
+    """Three-way comparison function for Python 3 compatibility.
+
+    Args:
+        a: First value.
+        b: Second value.
+
+    Returns:
+        1 if a > b, -1 if a < b, 0 if equal.
+    """
     return (a > b) - (a < b)
 
 
 
 
 class Bundle (dict):
-    """
-    A small class for creating a closure of variables
-    handy for nested functions that need to assign to variables in an 
-    outer scope
+    """A small class for creating a closure of variables.
 
-    Example:
+    Handy for nested functions that need to assign to variables in an outer
+    scope. Attributes and dictionary keys are kept in sync.
 
-    def func1():
-        this = Bundle(var1 = 0, var2 = "hello")
-        def func2():
-            this.var1 += 1
-        func2()
-        print(this.var1)
-    func1()
-    
-    will produce:
-    1
-    
+    Example::
+
+        def func1():
+            this = Bundle(var1=0, var2="hello")
+            def func2():
+                this.var1 += 1
+            func2()
+            print(this.var1)
+        func1()
+        # prints: 1
     """
 
     def __init__(self, **variables):
+        """Initialize a Bundle with keyword arguments as attributes.
+
+        Args:
+            **variables: Arbitrary keyword arguments that become both
+                attributes (self.key) and dictionary entries.
+        """
         for key, val in variables.items():
             setattr(self, key, val)
             dict.__setitem__(self, key, val)
 
     def __setitem__(self, key, val):
+        """Set a key both as an attribute and as a dict entry.
+
+        Args:
+            key: Attribute/key name.
+            val: Value to assign.
+        """
         setattr(self, key, val)
         dict.__setitem__(self, key, val)
 
 
 
 class Dict (dict):
-    """My personal nested Dictionary (with default values)"""
+    """A nested dictionary with configurable dimensionality and default values.
+
+    Accessing a missing key returns (and optionally inserts) a default value
+    or a nested Dict of one lower dimension, enabling multi-dimensional sparse
+    containers without explicit initialisation.
+    """
 
 
     def __init__(self, items=None, dim=1, default=None, insert=True):
-        """
-        items   -- items to initialize Dict (can be dict, list, iter)
-        dim     -- number of dimensions of the dictionary
-        default -- default value of a dictionary item
+        """Initialize a Dict.
+
+        Args:
+            items: Initial items to populate the dict (dict, list of pairs,
+                or other iterable). If an int is passed, it is treated as
+                the old-style positional dim argument for backwards
+                compatibility.
+            dim: Number of nesting dimensions (default 1).
+            default: Default value returned for missing leaf-level keys
+                (default None).
+            insert: If True, accessing a missing key inserts the default
+                value automatically (default True).
         """
 
         if isinstance(items, int):
@@ -97,6 +128,15 @@ class Dict (dict):
 
 
     def __getitem__(self, i):
+        """Return the value for key i, inserting a default if missing.
+
+        Args:
+            i: The key to look up.
+
+        Returns:
+            The stored value, or a default Dict/copy of null if the key was
+            absent.
+        """
         if i not in self:
             if self._dim > 1:
                 ret = Dict(self._dim - 1, self._null)
@@ -109,6 +149,14 @@ class Dict (dict):
 
 
     def has_keys(self, *keys):
+        """Check whether a sequence of nested keys all exist.
+
+        Args:
+            *keys: Keys to check at successive nesting levels.
+
+        Returns:
+            True if all keys are present at the corresponding nesting levels.
+        """
         if len(keys) == 0:
             return True
         elif len(keys) == 1:
@@ -118,6 +166,11 @@ class Dict (dict):
                    self[keys[0]].has_keys(*keys[1:])
 
     def write(self, out = sys.stdout):
+        """Write a human-readable representation of the dict to a stream.
+
+        Args:
+            out: Output stream to write to (default sys.stdout).
+        """
         def walk(node, path):
             if node.dim == 1:
                 for i in node:
@@ -137,39 +190,77 @@ class Dict (dict):
 
 
 class Percent (float):
+    """A float subclass that formats itself as a percentage string.
+
+    Attributes:
+        digits: Number of decimal places used when formatting (default 1).
+    """
     digits = 1
 
     def __str__(self):
+        """Return the value formatted as a percentage with self.digits decimals.
+
+        Returns:
+            String such as "42.0" representing 42.0% (i.e. float value 0.42).
+        """
         return (("%%.%df" % self.digits) % (float(self) * 100))
 
     def __repr__(self):
+        """Return the same string as __str__."""
         return str(self)
 
 
 class PushIter (object):
-    """Wrap an iterator in another iterator that allows one to push new
-       items onto the front of the iteration stream"""
+    """An iterator wrapper that allows pushing items back to the front of the stream.
+
+    Wraps any iterable and provides a push() method to prepend items.
+    """
 
     def __init__(self, it):
+        """Initialize a PushIter from any iterable.
+
+        Args:
+            it: Any iterable to wrap.
+        """
         self._it = iter(it)
         self._queue = []
 
     def __iter__(self):
+        """Return self as the iterator."""
         return self
 
     def __next__(self):
+        """Return the next item, preferring items from the push queue.
+
+        Returns:
+            The next item from the queue if non-empty, otherwise from the
+            underlying iterator.
+        """
         if len(self._queue) > 0:
             return self._queue.pop()
         else:
             return self.next(_it)
 
     def push(self, item):
-        """Push a new item onto the front of the iteration stream"""
+        """Push a new item onto the front of the iteration stream.
+
+        Args:
+            item: Item to prepend to the iteration.
+        """
         self._queue.append(item)
 
 
 def exceptDefault(func, val, exc=Exception):
-    """Specify a default value for when an exception occurs"""
+    """Call func() and return val if the specified exception is raised.
+
+    Args:
+        func: A zero-argument callable to invoke.
+        val: Default value to return on exception.
+        exc: Exception type (or tuple of types) to catch (default Exception).
+
+    Returns:
+        The return value of func(), or val if exc was raised.
+    """
     try:
         return func()
     except exc:
@@ -463,6 +554,16 @@ def frange(start, end, step):
 # simple matrix functions
 
 def make_matrix(nrows, ncols, val = 0):
+    """Create a 2D list (matrix) with given dimensions and a fill value.
+
+    Args:
+        nrows: Number of rows.
+        ncols: Number of columns.
+        val: Fill value for each cell (default 0); each cell gets a copy.
+
+    Returns:
+        A list of lists of shape (nrows, ncols) filled with copies of val.
+    """
     mat = []
     for i in range(nrows):
         row = []
@@ -585,12 +686,29 @@ def count(func, lst):
             n += 1
     return n
 
-def counteq(a, lst): return count(eqfunc(a), lst)
-def countneq(a, lst): return count(neqfunc(a), lst)
-def countle(a, lst): return count(lefunc(a), lst)
-def countlt(a, lst): return count(ltfunc(a), lst)
-def countge(a, lst): return count(gefunc(a), lst)
-def countgt(a, lst): return count(gtfunc(a), lst)
+def counteq(a, lst):
+    """Count items in lst equal to a."""
+    return count(eqfunc(a), lst)
+
+def countneq(a, lst):
+    """Count items in lst not equal to a."""
+    return count(neqfunc(a), lst)
+
+def countle(a, lst):
+    """Count items in lst less than or equal to a."""
+    return count(lefunc(a), lst)
+
+def countlt(a, lst):
+    """Count items in lst strictly less than a."""
+    return count(ltfunc(a), lst)
+
+def countge(a, lst):
+    """Count items in lst greater than or equal to a."""
+    return count(gefunc(a), lst)
+
+def countgt(a, lst):
+    """Count items in lst strictly greater than a."""
+    return count(gtfunc(a), lst)
 
 
 def find(func, *lsts):
@@ -629,12 +747,29 @@ def find(func, *lsts):
 
     return pos
 
-def findeq(a, lst): return find(eqfunc(a), lst)
-def findneq(a, lst): return find(neqfunc(a), lst)
-def findle(a, lst): return find(lefunc(a), lst)
-def findlt(a, lst): return find(ltfunc(a), lst)
-def findge(a, lst): return find(gefunc(a), lst)
-def findgt(a, lst): return find(gtfunc(a), lst)
+def findeq(a, lst):
+    """Return indices of items in lst equal to a."""
+    return find(eqfunc(a), lst)
+
+def findneq(a, lst):
+    """Return indices of items in lst not equal to a."""
+    return find(neqfunc(a), lst)
+
+def findle(a, lst):
+    """Return indices of items in lst less than or equal to a."""
+    return find(lefunc(a), lst)
+
+def findlt(a, lst):
+    """Return indices of items in lst strictly less than a."""
+    return find(ltfunc(a), lst)
+
+def findge(a, lst):
+    """Return indices of items in lst greater than or equal to a."""
+    return find(gefunc(a), lst)
+
+def findgt(a, lst):
+    """Return indices of items in lst strictly greater than a."""
+    return find(gtfunc(a), lst)
 
 
 def islands(lst):
@@ -748,13 +883,42 @@ def minfunc(func, lst):
 #   count(ltfunc(4), lst)  ==> returns the number of values in lst < 4
 #
 
-def eqfunc(a): return lambda x: x == a
-def neqfunc(a): return lambda x: x != a
-def ltfunc(a): return lambda x: x < a
-def gtfunc(a): return lambda x: x > a
-def lefunc(a): return lambda x: x <= a
-def gefunc(a): return lambda x: x >= a
+def eqfunc(a):
+    """Return a function that tests equality with a."""
+    return lambda x: x == a
+
+def neqfunc(a):
+    """Return a function that tests inequality with a."""
+    return lambda x: x != a
+
+def ltfunc(a):
+    """Return a function that tests x < a."""
+    return lambda x: x < a
+
+def gtfunc(a):
+    """Return a function that tests x > a."""
+    return lambda x: x > a
+
+def lefunc(a):
+    """Return a function that tests x <= a."""
+    return lambda x: x <= a
+
+def gefunc(a):
+    """Return a function that tests x >= a."""
+    return lambda x: x >= a
+
 def withinfunc(a, b, ainc=True, binc=True):
+    """Return a function that tests whether x is within the range [a, b].
+
+    Args:
+        a: Lower bound.
+        b: Upper bound.
+        ainc: If True, the lower bound is inclusive (default True).
+        binc: If True, the upper bound is inclusive (default True).
+
+    Returns:
+        A one-argument function returning True if x is in the specified range.
+    """
     if ainc:
         if binc:
             return lambda x: a <= x <= b
@@ -775,25 +939,69 @@ def lg(num):
     """Retruns the log_2 of a number"""
     return math.log(num, 2)
 
-def add(a, b): return a + b
-def sub(a, b): return a - b
-def mul(a, b): return a * b
-def idiv(a, b): return a / b
-def div(a, b): return a / float(b)
+def add(a, b):
+    """Return a + b."""
+    return a + b
+
+def sub(a, b):
+    """Return a - b."""
+    return a - b
+
+def mul(a, b):
+    """Return a * b."""
+    return a * b
+
+def idiv(a, b):
+    """Return a / b (true division)."""
+    return a / b
+
+def div(a, b):
+    """Return a / float(b)."""
+    return a / float(b)
 
 def safediv(a, b, default=INF):
+    """Divide a by b, returning default on ZeroDivisionError.
+
+    Args:
+        a: Numerator.
+        b: Denominator.
+        default: Value to return when b is zero (default INF).
+
+    Returns:
+        a / float(b), or default if b is zero.
+    """
     try:
         return a / float(b)
     except ZeroDivisionError:
         return default
 
 def safelog(x, base=math.e, default=-INF):
+    """Compute log(x) in the given base, returning default on error.
+
+    Args:
+        x: Value to take the logarithm of.
+        base: Logarithm base (default math.e for natural log).
+        default: Value to return when x <= 0 or overflow occurs (default -INF).
+
+    Returns:
+        math.log(x, base), or default on OverflowError or ValueError.
+    """
     try:
         return math.log(x, base)
     except (OverflowError, ValueError):
         return default
 
-def invcmp(a, b): return cmp(b, a)  # cmp is defined locally above
+def invcmp(a, b):
+    """Return the reversed comparison of a and b (i.e. cmp(b, a)).
+
+    Args:
+        a: First value.
+        b: Second value.
+
+    Returns:
+        1 if b > a, -1 if b < a, 0 if equal.
+    """
+    return cmp(b, a)  # cmp is defined locally above
 
 def clamp(x, low, high):
     """Clamps a value 'x' between the values 'low' and 'high'
@@ -809,6 +1017,15 @@ def clamp(x, low, high):
         return x
 
 def clampfunc(low, high):
+    """Return a function that clamps its argument between low and high.
+
+    Args:
+        low: Lower bound (or None for no lower bound).
+        high: Upper bound (or None for no upper bound).
+
+    Returns:
+        A one-argument function equivalent to clamp(x, low, high).
+    """
     return lambda x: clamp(x, low, high)
 
 
@@ -1106,6 +1323,16 @@ writeDelim = write_delim
 #
 
 def default_justify(val):
+    """Return the default column justification for a value.
+
+    Numeric types (int, float) are right-justified; everything else is left.
+
+    Args:
+        val: The value whose justification is needed.
+
+    Returns:
+        "right" for int/float values, "left" otherwise.
+    """
     if isinstance(val, int) or \
        isinstance(val, float):
         return "right"
@@ -1114,6 +1341,18 @@ def default_justify(val):
 defaultJustify = default_justify
 
 def default_format(val):
+    """Format a value for tabular display.
+
+    Integers are formatted with comma separators via int2pretty. Percent
+    values use their own __str__. Small floats use scientific notation;
+    others use 4 decimal places. Everything else uses str().
+
+    Args:
+        val: The value to format.
+
+    Returns:
+        A human-readable string representation of val.
+    """
     if isinstance(val, int) and \
        not isinstance(val, bool):
         return int2pretty(val)
@@ -1196,7 +1435,18 @@ def printcols(data, width=None, spacing=1, format=defaultFormat,
 
 
 def list2matrix(lst, nrows=None, ncols=None, bycols=True):
-    """Turn a list into a matrix by wrapping its entries"""
+    """Reshape a flat list into a 2D matrix.
+
+    Args:
+        lst: The list to reshape.
+        nrows: Number of rows. Inferred from ncols if not given.
+        ncols: Number of columns. Inferred from nrows if not given.
+            If neither is given, a roughly square shape is used.
+        bycols: If True, fill the matrix column-by-column (default True).
+
+    Returns:
+        A list of lists representing the reshaped matrix.
+    """
 
     mat = []
 
@@ -1222,7 +1472,15 @@ def list2matrix(lst, nrows=None, ncols=None, bycols=True):
 
 
 def printwrap(text, width=80, prefix="", out=sys.stdout):
-    """Prints text with wrapping"""
+    """Print text with line wrapping at a fixed column width.
+
+    Args:
+        text: The string to print.
+        width: Maximum number of characters per line (default 80).
+            If None, print the text as a single line with no wrapping.
+        prefix: String prepended to each wrapped line (default "").
+        out: Output stream (default sys.stdout).
+    """
     if width == None:
         out.write(text)
         out.write("\n")
@@ -1276,7 +1534,21 @@ def print_dict(dic, key=lambda x: x, val=lambda x: x,
               spacing=4, out=sys.stdout,
               format=defaultFormat,
               justify=defaultJustify):
-    """Print s a dictionary in two columns"""
+    """Print a dictionary as an aligned two-column table.
+
+    Args:
+        dic: Dictionary to print.
+        key: Function applied to keys before printing (default identity).
+        val: Function applied to values before printing (default identity).
+        num: Maximum number of entries to print. Defaults to all.
+        cmp: Comparison function (unused in Python 3; kept for compatibility).
+        order: Key function for sorting items. If None, default sort is used.
+        reverse: If True, sort in descending order (default False).
+        spacing: Number of spaces between columns (default 4).
+        out: Output stream (default sys.stdout).
+        format: Formatting function for cell values (default default_format).
+        justify: Justification function for cell values (default default_justify).
+    """
 
     if num == None:
         num = len(dic)
@@ -1299,13 +1571,32 @@ printDict = print_dict
 #
 
 class SafeReadIter:
+    """An iterator over a file handle that stops at EOF without raising an error.
+
+    Unlike a bare for-loop over a file, this class uses readline() and raises
+    StopIteration when an empty string (EOF) is encountered.
+    """
     def __init__(self, infile):
+        """Initialize from an open file handle.
+
+        Args:
+            infile: An open file handle to iterate over.
+        """
         self.infile = infile
 
     def __iter__(self):
+        """Return self as the iterator."""
         return self
 
     def __next__(self):
+        """Return the next line or raise StopIteration at EOF.
+
+        Returns:
+            Next line string from the file.
+
+        Raises:
+            StopIteration: When end of file is reached.
+        """
         line = self.infile.readline()
         if line == "":
             raise StopIteration
@@ -1313,6 +1604,15 @@ class SafeReadIter:
             return line
 
 def readWord(infile, delims = [" ", "\t", "\n"]):
+    """Read the next whitespace-delimited word from a file stream.
+
+    Args:
+        infile: An open file handle to read from.
+        delims: List of delimiter characters (default space, tab, newline).
+
+    Returns:
+        The next word as a string, or an empty string at EOF.
+    """
     word = ""
 
     while True:
@@ -1331,6 +1631,16 @@ def readWord(infile, delims = [" ", "\t", "\n"]):
 
 
 def readUntil(stream, chars):
+    """Read from stream until one of the given characters (or EOF) is seen.
+
+    Args:
+        stream: An open file handle.
+        chars: String or iterable of stop characters.
+
+    Returns:
+        A tuple (token, char) where token is the accumulated string before
+        the stop character, and char is the stop character (or "" at EOF).
+    """
     token = ""
     while True:
         char = stream.read(1)
@@ -1340,6 +1650,17 @@ def readUntil(stream, chars):
 
 
 def readWhile(stream, chars):
+    """Read from stream while characters are in the given set.
+
+    Args:
+        stream: An open file handle.
+        chars: String or iterable of accepted characters.
+
+    Returns:
+        A tuple (token, char) where token is the accumulated string of
+        matching characters, and char is the first non-matching character
+        (or "" at EOF).
+    """
     token = ""
     while True:
         char = stream.read(1)
@@ -1349,6 +1670,14 @@ def readWhile(stream, chars):
 
 
 def skipComments(infile):
+    """Yield non-comment, non-blank lines from a file.
+
+    Args:
+        infile: An iterable of lines (e.g. an open file handle).
+
+    Yields:
+        Lines that do not start with "#" and are not blank.
+    """
     for line in infile:
         if line.startswith("#") or line.startswith("\n"):
             continue
@@ -1356,26 +1685,51 @@ def skipComments(infile):
 
 
 class IndentStream:
-    """
-    Makes any stream into an indent stream.
-    
-    Indent stream auto indents every line written to it
+    """A write-only stream wrapper that automatically indents every line.
+
+    Tracks a current indentation depth and prepends that many spaces to the
+    start of each new line. Use indent() and dedent() to change the depth.
+
+    Attributes:
+        stream: The underlying writable stream.
+        linestart: True when the next character written begins a new line.
+        depth: Current indentation level in spaces.
     """
 
     def __init__(self, stream):
+        """Initialize an IndentStream wrapping the given stream.
+
+        Args:
+            stream: A filename string or writable file object to wrap.
+        """
         self.stream = open_stream(stream, "w")
         self.linestart = True
         self.depth = 0
 
     def indent(self, num=2):
+        """Increase the indentation depth.
+
+        Args:
+            num: Number of spaces to add (default 2).
+        """
         self.depth += num
 
     def dedent(self, num=2):
+        """Decrease the indentation depth, clamped to zero.
+
+        Args:
+            num: Number of spaces to remove (default 2).
+        """
         self.depth -= num
         if self.depth < 0:
             self.depth = 0
 
     def write(self, text):
+        """Write text to the underlying stream, prepending indentation as needed.
+
+        Args:
+            text: The string to write.
+        """
         lines = text.split("\n")
 
         for line in lines[:-1]:
@@ -1473,7 +1827,18 @@ replaceExt = replace_ext
 
 
 def sortrank(lst, cmp=None, key=None, reverse=False):
-    """Returns the ranks of items in lst"""
+    """Return the indices that would sort lst.
+
+    Args:
+        lst: The list to rank.
+        cmp: Comparison function (deprecated; ignored if key is provided).
+        key: A one-argument function to extract a comparison key from
+            each list element (default identity).
+        reverse: If True, sort in descending order (default False).
+
+    Returns:
+        A list of integer indices such that [lst[i] for i in result] is sorted.
+    """
     ind = list(range(len(lst)))
 
     if key is None:
@@ -1497,7 +1862,14 @@ def sort_together(compare, lst, *others):
 sortTogether = sort_together
 
 def invperm(perm):
-    """Returns the inverse of a permutation 'perm'"""
+    """Return the inverse of a permutation.
+
+    Args:
+        perm: A list of unique integers 0..n-1 representing a permutation.
+
+    Returns:
+        A list inv such that inv[perm[i]] == i for all i.
+    """
     inv = [0] * len(perm)
     for i in range(len(perm)):
         inv[perm[i]] = i
@@ -1511,14 +1883,33 @@ invPerm = invperm
 #
 
 def oneNorm(vals):
-    """Normalize values so that they sum to 1"""
+    """Normalize a list of values so that they sum to 1.
+
+    Args:
+        vals: A list or iterable of numeric values.
+
+    Returns:
+        A list of values each divided by the total sum.
+    """
     s = float(sum(vals))
     return [x/s for x in vals]
 
 
 def bucketSize(array, ndivs=None, low=None, width=None):
-    """Determine the bucket size needed to divide the values in array into 
-       'ndivs' evenly sized buckets"""
+    """Determine bucket parameters for dividing array values into bins.
+
+    Exactly one of ndivs or width should be supplied (or neither, which
+    defaults to ndivs=20). The other value is derived from the data.
+
+    Args:
+        array: A sequence of numeric values.
+        ndivs: Desired number of bins. Derived from width if not given.
+        low: Lower bound for binning. Defaults to min(array).
+        width: Desired bin width. Derived from ndivs if not given.
+
+    Returns:
+        A tuple (ndivs, low, width) with all three values resolved.
+    """
 
     if low is None:
         low = min(array)
@@ -1545,7 +1936,20 @@ def bucketBin(item, ndivs, low, width):
 
 
 def bucket(array, ndivs=None, low=None, width=None, key=lambda x: x):
-    """Group elements of 'array' into 'ndivs' lists"""
+    """Group elements of array into ndivs buckets.
+
+    Args:
+        array: A sequence of items to bucket.
+        ndivs: Number of buckets (inferred if not given).
+        low: Lower bound for the first bucket (default min of key values).
+        width: Bucket width (inferred if not given).
+        key: Function to extract a numeric comparison key from each item
+            (default identity).
+
+    Returns:
+        A tuple (x, h) where x is a list of bucket lower-bound values and
+        h is a list of lists containing the array items in each bucket.
+    """
 
     keys = map(key, array)
 
@@ -1566,7 +1970,18 @@ def bucket(array, ndivs=None, low=None, width=None, key=lambda x: x):
 
 
 def hist(array, ndivs=None, low=None, width=None):
-    """Create a histogram of 'array' with 'ndivs' buckets"""
+    """Create a histogram of array values.
+
+    Args:
+        array: A sequence of numeric values.
+        ndivs: Number of histogram bins (default 20 if width is also None).
+        low: Lower bound of the first bin. Defaults to min(array).
+        width: Bin width (inferred from ndivs if not given).
+
+    Returns:
+        A tuple (x, h) where x is a list of bin lower-bound values and
+        h is a list of integer counts for each bin.
+    """
 
     # set bucket sizes
     ndivs, low, width = bucketSize(array, ndivs, low, width)
@@ -1590,7 +2005,22 @@ def hist2(array1, array2,
           ndivs1=None, ndivs2=None,
           low1=None, low2=None,
           width1=None, width2=None):
-    """Perform a 2D histogram"""
+    """Perform a 2D histogram over two arrays.
+
+    Args:
+        array1: First sequence of numeric values (mapped to columns).
+        array2: Second sequence of numeric values (mapped to rows).
+        ndivs1: Number of bins for array1 (default derived from data).
+        ndivs2: Number of bins for array2 (default derived from data).
+        low1: Lower bound for array1 bins. Defaults to min(array1).
+        low2: Lower bound for array2 bins. Defaults to min(array2).
+        width1: Bin width for array1 (inferred if not given).
+        width2: Bin width for array2 (inferred if not given).
+
+    Returns:
+        A tuple (labels, h) where labels is a 2D list of [x, y] bin
+        coordinates and h is a 2D list of integer counts.
+    """
 
 
     # set bucket sizes
@@ -1615,8 +2045,14 @@ def hist2(array1, array2,
 
 
 def histbins(bins):
-    """Adjust the bins from starts to centers, this will allow GNUPLOT to plot
-       histograms correctly"""
+    """Convert bin start positions to bin center positions for GNUPLOT plotting.
+
+    Args:
+        bins: A list of bin start positions.
+
+    Returns:
+        A list of bin center positions the same length as bins.
+    """
 
     bins2 = []
 
@@ -1631,7 +2067,21 @@ def histbins(bins):
 
 
 def distrib(array, ndivs=None, low=None, width=None):
-    """Find the distribution of 'array' using 'ndivs' buckets"""
+    """Compute the probability density distribution of array.
+
+    Normalises histogram counts by the total number of items and bin width,
+    giving an approximate PDF.
+
+    Args:
+        array: A sequence of numeric values.
+        ndivs: Number of bins (default derived from data).
+        low: Lower bound of the first bin. Defaults to min(array).
+        width: Bin width (inferred if not given).
+
+    Returns:
+        A tuple (x, h) where x is bin lower-bound values and h is a list
+        of density values (count / total / width).
+    """
 
     # set bucket sizes
     ndivs, low, width = bucketSize(array, ndivs, low, width)
@@ -1674,6 +2124,17 @@ histDict = hist_dict
 
 def print_hist(array, ndivs=20, low=None, width=None,
               cols=75, spacing=2, out=sys.stdout):
+    """Print a text-based histogram with ASCII bar chart.
+
+    Args:
+        array: A sequence of numeric values to histogram.
+        ndivs: Number of bins (default 20).
+        low: Lower bound for the first bin. Defaults to min(array).
+        width: Bin width (inferred if not given).
+        cols: Total character width of the output including bars (default 75).
+        spacing: Number of spaces between columns (default 2).
+        out: Output stream (default sys.stdout).
+    """
     data = list(hist(array, ndivs, low=low, width=width))
 
     # find max bar

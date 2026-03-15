@@ -1,5 +1,10 @@
 #!/usr/bin/env python
 '''
+Quality control tools for sequencing data.
+
+Provides a FASTQ file parser and a position-weight matrix (PWM) builder for
+inspecting base-composition biases across read positions.
+
 Created on May 6, 2010
 
 @author: lgoff
@@ -9,6 +14,27 @@ import numpy as np
 
 
 def makePWM(fastqFile,readLen,freq=True):
+    """Build a position-weight matrix of base composition from a FASTQ file.
+
+    Iterates over all records in a FASTQ file and tallies the occurrence of
+    each nucleotide (A, C, G, T) at every position across ``readLen``
+    positions.  Ambiguous bases (e.g. 'N') are silently ignored.
+    Optionally converts raw counts to per-position frequencies.
+
+    Args:
+        fastqFile: Path to the FASTQ file to process.
+        readLen: Expected read length (number of positions to track).
+        freq: If True (default), each base count vector is divided by the
+            total count at that position to produce a frequency.  If False,
+            raw counts are returned.
+
+    Returns:
+        A dict with keys 'A', 'C', 'G', 'T', and 'Total'.  Each key maps to
+        a numpy array of length ``readLen``.  The 'Total' array contains the
+        total number of valid base observations at each position; the
+        individual base arrays contain either counts or frequencies depending
+        on the ``freq`` argument.
+    """
     bases = ['A','C','G','T']
     pwm = {
            'A':np.zeros(readLen),
@@ -37,6 +63,27 @@ def makePWM(fastqFile,readLen,freq=True):
 #Parsers
 ################
 def FastqIterator(fastqFile):
+    """Iterate over records in a FASTQ file.
+
+    Skips any non-FASTQ header text at the start of the file (lines that do
+    not begin with '@') and then yields one dict per record.  The file is
+    expected to use standard four-line FASTQ format: a '@'-prefixed name
+    line, a sequence line, a '+' line, and a quality line.
+
+    Args:
+        fastqFile: Path to the FASTQ file to parse.
+
+    Yields:
+        A dict with keys:
+            ``'name'``: Read name string (the '@' prefix is stripped).
+            ``'sequence'``: Nucleotide sequence string.
+            ``'quals'``: ASCII quality string.
+
+    Raises:
+        ValueError: If a record's name line does not start with '@'.
+        ValueError: If the separator line between sequence and qualities
+            does not start with '+'.
+    """
     handle = open(fastqFile,'r')
     #Skip any header text
     while True:

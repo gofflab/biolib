@@ -309,14 +309,34 @@ def pileup2wig(fname,shortname,outDir=os.getcwd()+"/"):
 
 
 def getBitValue(n, p):
-    '''
-    get the bitvalue of denary (base 10) number n at the equivalent binary
-    position p (binary count starts at position 0 from the right)
-    '''
+    """Return the bit at position p of integer n.
+
+    Extracts a single bit at binary position p (zero-indexed from the
+    least-significant bit) of the integer n.
+
+    Args:
+        n: A non-negative integer to inspect.
+        p: Zero-based bit position (0 = least-significant / rightmost bit).
+
+    Returns:
+        1 if the bit at position p is set, 0 otherwise.
+    """
     return (n >> p) & 1
 
 def strandFlag(flag):
-    """Returns strand of sequence from SAM record bitflag (field 4)"""
+    """Determine the alignment strand from a SAM bitflag value.
+
+    Inspects bit 4 (0x10) of the SAM FLAG field to determine whether a read
+    mapped to the reverse strand.
+
+    Args:
+        flag: The integer SAM FLAG value (field 2), or a string
+            representation of it.
+
+    Returns:
+        '+' if bit 4 is 0 (forward strand), '-' if bit 4 is 1 (reverse
+        strand), or '*' for any other value.
+    """
     flag = int(flag)
     if getBitValue(flag,4)==0:
         return "+"
