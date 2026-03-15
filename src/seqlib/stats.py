@@ -1575,6 +1575,25 @@ def betaPdf(x, params):
 
 
 def betaPdf3(x, params):
+    """Evaluate the Beta(alpha, beta) PDF at ``x`` using a product formula.
+
+    Computes the PDF via a direct multiplicative recurrence with
+    integer-cast parameters.  Splits the product into two parts: a
+    symmetric core term up to ``min(alpha-1, beta-1)``, then an
+    asymmetric tail term up to ``max(alpha-1, beta-1)``.
+
+    Args:
+        x: The point at which to evaluate the PDF.  Must satisfy
+            ``0 < x < 1``.
+        params: A 2-tuple ``(alpha, beta)`` — the shape parameters.
+            Values are cast to ``int`` internally, so non-integer inputs
+            are truncated.  Both must be positive.
+
+    Returns:
+        The beta PDF value at ``x`` as a float.  Returns 0.0 if ``x``
+        is outside (0, 1) or if either shape parameter is non-positive
+        after truncation.
+    """
     alpha, beta = map(int, params)
     if 0 < x < 1 and alpha > 0 and beta > 0:
         n = min(alpha-1, beta-1)
@@ -1598,10 +1617,23 @@ def betaPdf3(x, params):
 
 
 def gamma(x):
-    """
-    Lanczos approximation to the gamma function.
+    """Compute the gamma function Gamma(x) via the Lanczos approximation.
 
-    found on http://www.rskey.org/gamma.htm
+    Uses the Lanczos coefficients to approximate Gamma(x) for positive
+    real ``x``.  The formula is::
+
+        Gamma(x) ≈ sqrt(2*pi) / x * (x + 5.5)^(x + 0.5) * exp(-x - 5.5)
+                   * series(x)
+
+    where ``series(x)`` is the Lanczos sum with 7 coefficients.
+
+    Reference: http://www.rskey.org/gamma.htm
+
+    Args:
+        x: A positive real number.
+
+    Returns:
+        An approximation of Gamma(x) as a float.
     """
 
     ret = 1.000000000190015 + \

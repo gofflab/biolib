@@ -599,6 +599,20 @@ def evolveKimuraSeq(seq, time, alpha=1, beta=1):
 
 
 def evolveKimuraBase(base, time, alpha, beta):
+    """Evolve a single DNA base under the Kimura two-parameter model.
+
+    Args:
+        base: A single DNA base character (A/C/G/T).
+        time: Evolutionary branch length.
+        alpha: Transition rate parameter.
+        beta: Transversion rate parameter.
+
+    Returns:
+        The (possibly substituted) DNA base character.
+
+    Raises:
+        AssertionError: If substitution probabilities do not sum to one.
+    """
     probs = {
         's': .25 * (1 - math.e**(-4 * beta * time)),
         'u': .25 * (1 + math.e**(-4 * beta * time)
