@@ -42,8 +42,33 @@ def linker_oligos(linker = P2_seq):
 #CSSeq Class definition:  Basic class of Colorspace sequence
 #################################################################
 class CSSeq:
-    "Defines the basic sequence class for the pipeline (DNA or CS)"
+    """Represents a single SOLiD colorspace (or DNA-space) sequence read.
+
+    Holds the sequence data, quality scores, and alignment metadata for one
+    SOLiD bead read.  The sequence may be in colorspace (space='CS') or may
+    have been converted to DNA space (space='DNA') via CSToDNA().
+
+    Attributes:
+        name: Read identifier string (bead name).
+        sequence: Sequence string; either colorspace (digits 0-3 prefixed by
+            a nucleotide) or DNA (ACGT) depending on space.
+        readcount: Number of times this read sequence was observed (used when
+            collapsing duplicates to a unique table, default 1).
+        matches: List of match location strings (populated when parsing a
+            .csfasta file with match annotations).
+        qual: List of integer Phred quality scores corresponding to each base.
+        space: Either 'CS' (colorspace, default) or 'DNA' after CSToDNA().
+        trimmed: True once the SOLiD linker has been stripped by
+            strip_solid_linker().
+    """
     def __init__(self,name,sequence,readcount=1):
+        """Initialises a CSSeq.
+
+        Args:
+            name: Read identifier (bead name).
+            sequence: Colorspace sequence string.
+            readcount: Observation count for this sequence (default: 1).
+        """
         self.name = name
         self.sequence = sequence
         self.readcount = readcount
@@ -54,11 +79,15 @@ class CSSeq:
         #self.count = 0
 
     def __len__(self):
+        """Returns the length of the sequence string."""
         return len(self.sequence)
 
     def __str__(self):
+        """Returns the sequence string."""
         return self.sequence
+
     def __repr__(self):
+        """Returns the read name."""
         return self.name
 
 #    def __repr__(self):

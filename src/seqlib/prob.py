@@ -315,9 +315,38 @@ def median(l):
     else: return (l[len(l)//2]+l[len(l)//2-1])/2.0
 
 def stdev(l, failfast=1):
+    """Compute the sample standard deviation of a list of numbers.
+
+    Returns the square root of the sample variance computed by
+    :func:`variance`.
+
+    Args:
+        l: A list of numeric values with at least 2 elements.
+        failfast: Passed directly to :func:`variance`.  If non-zero
+            (default), raises an error when fewer than 2 samples are
+            provided.
+
+    Returns:
+        The sample standard deviation as a float.
+    """
     return math.sqrt(variance(l,failfast=failfast))
 
 def variance(l,failfast=1):
+    """Compute the sample variance of a list of numbers.
+
+    Uses Bessel's correction (divides by ``n - 1``)::
+
+        s^2 = sum((x - mean)^2) / (n - 1)
+
+    Args:
+        l: A list of numeric values.
+        failfast: If non-zero (default), raises a string exception when
+            fewer than 2 samples are provided.  If 0, returns 0 instead.
+
+    Returns:
+        The sample variance as a float, or 0 when ``failfast=0`` and
+        the list has fewer than 2 elements.
+    """
     if (not l) or len(l)==1:
         if failfast: raise "tools.variance: Not enough samples.  Need >= 2, got %s"%len(l)
         else: return 0#'N/A'
