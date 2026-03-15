@@ -1,4 +1,10 @@
 #/usr/bin/env python
+"""Sequence utility functions for DNA/RNA analysis.
+
+Provides parsers, generic sequence tools, and motif tools for working
+with biological sequence data including FASTA parsing, complement
+computation, GC content, k-mer analysis, and random sequence generation.
+"""
 import math
 import operator
 import random
@@ -11,11 +17,26 @@ from . import prob
 #Parsers
 ######
 def FastaIterator(handle):
-    """
-    Generator function to iterate over fasta records in <handle>:
-    Use in a loop to apply to each Seq record contained in a .fasta file
-    Input: record handle as obtained by handle = open(<file>,'r')
-    Returns an iterator across Sequences in file
+    """Iterate over FASTA records in an open file handle.
+
+    Skips any header text before the first '>' character, then yields
+    one record dict per FASTA entry.  Each sequence has internal
+    whitespace stripped and lines joined into a single string.
+
+    Args:
+        handle: A readable file object (e.g. opened with ``open(path, 'r')``)
+            positioned at or before the first FASTA record.
+
+    Yields:
+        A dict with keys:
+            ``'name'``: The record header string (everything after ``>``
+            on the header line, whitespace-stripped).
+            ``'sequence'``: The concatenated sequence string with all
+            internal spaces removed.
+
+    Raises:
+        ValueError: If a record block does not begin with a ``>``
+            character as required by the FASTA format.
     """
     #Skip any header text
     while True:
@@ -49,6 +70,24 @@ bed_fields = ['chr','start','end','label','score','strand']
 ###
 
 def complement(s):
+    """Return the base-by-base complement of a DNA sequence as a list.
+
+    Handles both upper- and lower-case input characters.  Note that the
+    lower-case mapping contains a known quirk: ``'c'`` maps to ``'t'``
+    instead of ``'g'``.
+
+    Args:
+        s: An iterable of single-character DNA bases (``A``, ``T``, ``G``,
+            ``C`` in either case).
+
+    Returns:
+        A list of single-character strings representing the complemented
+        bases in the same order as the input.
+
+    Raises:
+        KeyError: If a character in ``s`` is not present in the complement
+            lookup table.
+    """
     comp = {'A': 'T', 'C': 'G', 'G': 'C', 'T': 'A',
             'a': 't', 'c': 't', 'g': 'c', 't': 'a'
             }
@@ -56,27 +95,103 @@ def complement(s):
     return complseq
 
 def reverse_complement(s):
+    """Return the reverse complement of a DNA sequence string.
+
+    Reverses the sequence and then complements each base using
+    :func:`complement`.
+
+    Args:
+        s: A DNA sequence string containing bases ``A``, ``T``, ``G``, ``C``
+            (upper or lower case).
+
+    Returns:
+        A string that is the reverse complement of ``s``.
+    """
     seq = list(s)
     seq.reverse()
     return ''.join(complement(seq))
 
 def rcomp(s):
-    """Does same thing as reverse_complement only cooler"""
+    """Return the reverse complement of an uppercase DNA string.
+
+    Uses ``str.translate`` with a precomputed translation table for
+    ``A<->T`` and ``C<->G``, then reverses the result with a slice.
+    Equivalent to :func:`reverse_complement` but operates only on
+    uppercase bases via the translation table.
+
+    Args:
+        s: An uppercase DNA sequence string (``A``, ``T``, ``C``, ``G``).
+
+    Returns:
+        A string that is the reverse complement of ``s``.
+    """
     return s.translate(string.maketrans("ATCG","TAGC"))[::-1]
 
 def getTm(seq):
+    """Calculate the melting temperature (Tm) of a DNA sequence.
+
+    Uses the nearest-neighbour-inspired empirical formula::
+
+        Tm = 79.8 + 18.5*log10([Na+]) + 58.4*GC + 11.8*GC^2 - 820/len
+
+    where ``[Na+]`` is fixed at 0.05 M and ``GC`` is the fractional GC
+    content of the sequence.
+
+    Args:
+        seq: A DNA sequence string.
+
+    Returns:
+        The estimated melting temperature in degrees Celsius as a float.
+    """
     Tm = 79.8 + 18.5*math.log10(0.05) + (58.4 * getGC(seq)) + (11.8 * getGC(seq)**2) - (820/len(seq))
     return Tm
 
 def getGC(seq):
+    """Return the fractional GC content of a DNA sequence.
+
+    Counts both upper- and lower-case ``G`` and ``C`` characters and
+    divides by the total sequence length.
+
+    Args:
+        seq: A DNA sequence string.
+
+    Returns:
+        A float in [0, 1] representing the proportion of G and C bases.
+    """
     return (seq.count('C')+seq.count('G')+seq.count('c')+seq.count('g'))/float(len(seq))
 
 def gc_content(seq):
+    """Return the percentage GC content of a nucleotide sequence.
+
+    Counts G and C characters (upper and lower case) and divides by the
+    sum of all A, T, U, G, C characters (upper and lower case), ignoring
+    any ambiguity codes or gap characters.  The result is scaled to
+    percentage (0–100).
+
+    Args:
+        seq: A DNA or RNA sequence string.
+
+    Returns:
+        A float representing GC content as a percentage (0–100).
+    """
     gc = mcount(seq, 'GCgc')
     at = mcount(seq, 'ATUatu')
     return 100*gc/float((gc+at))
 
 def mcount(s, chars):
+    """Count all occurrences of any character in ``chars`` within string ``s``.
+
+    Iterates over each character in ``chars`` and accumulates the count of
+    its appearances in ``s`` using ``string.count``.
+
+    Args:
+        s: The string to search within.
+        chars: A string whose individual characters are each counted in ``s``.
+
+    Returns:
+        The total number of occurrences of any character from ``chars``
+        found in ``s`` as an integer.
+    """
     # sums the counts of appearances of each char in chars
     count = 0
     for char in chars:

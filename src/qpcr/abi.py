@@ -1,6 +1,12 @@
 #!/usr/bin/env python
 '''
-Created on Feb 22, 2010
+Utilities for parsing and analyzing ABI qPCR instrument output.
+
+Provides functions for parsing raw ABI results and cycle data files,
+computing PCR amplification efficiencies via a sliding-window linear
+regression on log-transformed fluorescence values, performing the
+delta-delta Ct (ddCt) relative-quantification calculation, and
+summarizing/reporting the results.
 
 Requirements:
     - numpy
@@ -46,8 +52,21 @@ dictKeys = ['well','sample','detector','task','Ct','threshold']
 ##########################
 
 def parseData(fname):
-    """Raw input for this file is a matrix of well x (Well,SampleName,DetectorName,Task,Ct,Threshold).  You must also delete the intermediate headers and summary rows from raw output of ABI.
-    Be sure to remove the header section (except one header row).
+    """Parse a simplified ABI results text file into a list of well dictionaries.
+
+    Raw input is a tab-delimited matrix with columns:
+    Well, SampleName, DetectorName, Task, Ct, Threshold.
+    Intermediate headers and summary rows must be removed from the raw ABI
+    output before calling this function; only one header row should remain.
+    Wells with an ``Undetermined`` Ct value are silently skipped.
+
+    Args:
+        fname: Path to the tab-delimited results text file.
+
+    Returns:
+        A list of dicts, one per well, with keys ``well`` (int),
+        ``sample``, ``detector``, ``task``, ``Ct`` (float), and
+        ``threshold`` (float).
     """
     data = []
     handle = open(fname,'r')
@@ -65,6 +84,18 @@ def parseData(fname):
     return data
 
 def getDetAndSamp(data):
+    """Return ordered lists of unique detector and sample names found in the data.
+
+    Preserves first-seen order for both detectors and samples.
+
+    Args:
+        data: List of well dicts as returned by ``parseData``, each containing
+            ``detector`` and ``sample`` keys.
+
+    Returns:
+        A tuple ``(detectors, samples)`` where each element is a list of
+        unique string names in the order they were first encountered.
+    """
     detectors = []
     samples = []
     for well in data:
@@ -75,13 +106,33 @@ def getDetAndSamp(data):
     return detectors,samples
 
 def wellIndex(data):
+    """Build a list of well numbers in the same order as the data list.
+
+    Args:
+        data: List of well dicts, each containing a ``well`` key.
+
+    Returns:
+        A list of integer well numbers corresponding positionally to each
+        entry in ``data``.
+    """
     index = []
     for i in range(len(data)):
         index.append(data[i]['well'])
     return index
 
 def parseCycleData(fname):
-    """Raw input is tab-delimited text file with matrix of WellsxCycle values.  Header row is included.
+    """Parse a tab-delimited cycle fluorescence file into a list of well dicts.
+
+    Raw input is a tab-delimited file with a header row. Columns are:
+    Well, Sample, Detector, followed by one column per cycle number.
+
+    Args:
+        fname: Path to the tab-delimited cycle data text file.
+
+    Returns:
+        A list of dicts, one per well, with keys ``well`` (int),
+        ``sample`` (str), ``detector`` (str), and ``values`` (numpy array
+        of float fluorescence readings, one per cycle).
     """
     cycleData = []
     handle = open(fname,'r')
@@ -105,6 +156,17 @@ def parseCycleData(fname):
 #Get User Input
 ######################
 def getEndoControl(detectors):
+    """Interactively prompt the user to select an endogenous control detector.
+
+    Prints a numbered list of detector names and reads an integer choice from
+    standard input.
+
+    Args:
+        detectors: List of detector name strings to present to the user.
+
+    Returns:
+        The detector name string chosen by the user.
+    """
     myString = "Please choose an endogenous control:\n"
     for i in range(0,len(detectors)):
         myString = myString+"\t(%d):\t%s\n" % (i,detectors[i])
@@ -113,6 +175,17 @@ def getEndoControl(detectors):
     return detectors[choice]
 
 def getReference(samples):
+    """Interactively prompt the user to select a reference sample.
+
+    Prints a numbered list of sample names and reads an integer choice from
+    standard input.
+
+    Args:
+        samples: List of sample name strings to present to the user.
+
+    Returns:
+        The sample name string chosen by the user.
+    """
     myString = "Please choose a reference sample:\n"
     for i in range(0,len(samples)):
         myString = myString + "\t(%d):\t%s\n" % (i,samples[i])
@@ -125,6 +198,19 @@ def getReference(samples):
 #####################################
 
 def aggregateReplicateCts(data):
+    """Aggregate replicate Ct values per sample/detector pair using the median.
+
+    Groups raw per-well Ct values by (sample, detector) and computes the
+    median Ct for each combination.
+
+    Args:
+        data: List of well dicts, each containing ``sample``, ``detector``,
+            and ``Ct`` keys.
+
+    Returns:
+        A nested dict ``{sample: {detector: median_Ct}}`` where each value
+        is the median Ct (float) computed from all replicate wells.
+    """
     #TODO: make this aggregate either Ct values or N0 values?
     tmp = {}
     for d in data:

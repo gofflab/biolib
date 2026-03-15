@@ -1,6 +1,12 @@
 '''
+Miscellaneous tools to get information from a SAM/BAM file.
+
+Provides utilities for parsing SAM/BAM alignment files, computing read
+pileups, fetching strand-specific coverage arrays, and plotting read
+density across genomic intervals. Built on top of pysam.
+
 Created on Oct 25, 2009
-Misc tools to get information from a SAM/BAM file...
+
 @author: lgoff
 '''
 import array
@@ -17,20 +23,65 @@ from .Alignment import Alignment
 # from inOut.wiggle import WiggleFileWriter  # NOTE: inOut.wiggle module not available; WiggleFileWriter commented out
 
 class SAMAlignment(Alignment):
-    """Basic object for SAMstring (extends Alignment class)"""
+    """Basic object representing a single SAM alignment record.
+
+    Extends the Alignment base class with SAM-specific fields for the
+    CIGAR string and base-quality string.
+
+    Attributes:
+        qual: Base-quality string from SAM field 11.
+        cigar: CIGAR string from SAM field 6 describing the alignment.
+    """
+
     def __init__(self,readname,chr,start,end,strand,score,readcount,readsequence,cigar,qualstring):
+        """Initialises a SAMAlignment.
+
+        Args:
+            readname: Query template name (SAM field 1).
+            chr: Reference sequence name / chromosome (SAM field 3).
+            start: 1-based leftmost mapping position (SAM field 4).
+            end: Computed end position (start + read length - 1).
+            strand: Strand of the alignment, one of '+' or '-'.
+            score: Mapping quality score (SAM field 5).
+            readcount: Number of reads represented by this alignment
+                (typically 1 for a single record).
+            readsequence: Read sequence bases (SAM field 10).
+            cigar: CIGAR string describing alignment operations (SAM field 6).
+            qualstring: ASCII-encoded base-quality string (SAM field 11).
+        """
         Alignment.__init__(self,readname,chr,start,end,strand,score=readcount,readcount = readcount,readsequence=readsequence)
         self.qual = qualstring
         self.cigar = cigar
 
 def SAMReader(fname):
-    """Iterator for SAMAlignment records (depricated, use pysam)"""
+    """Iterate over SAM alignment records from a file.
+
+    Deprecated — use pysam directly for new code.
+
+    Args:
+        fname: Path to the SAM file.
+
+    Yields:
+        An Interval object for each alignment record in the file.
+    """
     handle = open(fname,'r')
     for line in handle:
         aln = parseSAMString(line)
         yield aln.toInterval()
 
 def parseSAMString(samstring):
+    """Parse a single SAM-format line into a SAMAlignment object.
+
+    Reads are assumed to be non-paired and non-spliced; the end position is
+    derived from the start position plus the read-sequence length.
+
+    Args:
+        samstring: A single tab-delimited SAM record line (no trailing
+            newline required — it is stripped internally).
+
+    Returns:
+        A SAMAlignment instance populated from the SAM fields.
+    """
     tokens = samstring.rstrip().split("\t")
     readname = tokens[0]
     chr = tokens[2]
@@ -45,7 +96,22 @@ def parseSAMString(samstring):
     return SAMAlignment(readname,chr,start,end,strand,score,readcount,readsequence,cigar,qualstring)
 
 def pileup2wig(fname,shortname,outDir=os.getcwd()+"/"):
-    """Don't use this...it's lazy and it doesn't feel right"""
+    """Convert a samtools pileup file to strand-specific wiggle files.
+
+    Reads a samtools pileup output file and writes two variableStep wiggle
+    files: one for the plus strand (forward reads, indicated by '.') and one
+    for the minus strand (reverse reads, indicated by ','). This
+    implementation is noted as incomplete / not recommended for production
+    use.
+
+    Args:
+        fname: Path to the samtools pileup file to read.
+        shortname: Base name used for both the wiggle track labels and the
+            output file names (``<shortname>_plus.wig`` and
+            ``<shortname>_minus.wig``).
+        outDir: Directory in which the output wiggle files are written.
+            Defaults to the current working directory.
+    """
     handle = open(fname,'r')
     preRef = ''
     prePos = -1
@@ -56,6 +122,16 @@ def pileup2wig(fname,shortname,outDir=os.getcwd()+"/"):
     minusHand = open(outDir+shortname+"_minus.wig",'w')
 
     def wigHeader(shortname,strand):
+        """Build a UCSC wiggle track-definition header line.
+
+        Args:
+            shortname: Base name used in the track name and description fields.
+            strand: Strand of the track, either '+' (blue) or '-' (red).
+
+        Returns:
+            A wiggle track header string suitable for writing as the first
+            line of a wiggle file.
+        """
         if strand=="+":
             color = '0,0,255'
             sName = 'plus'
@@ -84,17 +160,49 @@ def pileup2wig(fname,shortname,outDir=os.getcwd()+"/"):
     minusHand.close()
 
 class Counter:
-    """Use in callback function to store read counts within an alignment (includes those that
-    are not completely contained within the alignment"""
+    """Callable that accumulates a total read count for use as a pysam callback.
+
+    Designed to be passed as a callback to pysam fetch/pileup methods.
+    Counts all reads that overlap the queried region, including those not
+    completely contained within it.
+
+    Attributes:
+        mCounts: Running total of reads seen so far.
+    """
+
     mCounts = 0
+
     def __call__(self,alignment):
+        """Increment the read counter by one for each alignment seen.
+
+        Args:
+            alignment: A pysam AlignedSegment (or compatible) object.
+                The alignment itself is not inspected; only its presence
+                increments the counter.
+        """
         self.mCounts += 1
 
 class StrandCounter:
-    """Provides a strand-specific number of reads as opposed to total read density"""
+    """Callable that accumulates strand-specific read counts for use as a pysam callback.
+
+    Separates reads into forward (plus) and reverse (minus) strand tallies
+    rather than combining them into a single total.
+
+    Attributes:
+        plusCount: Running total of forward-strand reads seen.
+        minusCount: Running total of reverse-strand reads seen.
+    """
+
     plusCount = 0
     minusCount = 0
+
     def __call__(self,alignment):
+        """Increment the appropriate strand counter for each alignment seen.
+
+        Args:
+            alignment: A pysam AlignedSegment (or compatible) object.
+                Strand is determined from the ``is_reverse`` flag.
+        """
         if alignment.is_reverse:
             self.minusCount += 1
         else:
