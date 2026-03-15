@@ -357,14 +357,51 @@ def variance(l,failfast=1):
     return s / (len(l)-1)
 
 def log2(x):
+    """Compute the base-2 logarithm of ``x``.
+
+    Uses the change-of-base formula::
+
+        log2(x) = ln(x) / ln(2)
+
+    Args:
+        x: A positive real number.
+
+    Returns:
+        The base-2 logarithm of ``x`` as a float.
+    """
     #converting bases: log_a(b) = log_c(b)/log_c(a)
     #i.e. log_2(x) = log_e(2)/log_e(x) = log_10(2)/log_10(x)
     return math.log(x)/float(loge_2)
 
 def log_k(x,k):
+    """Compute the base-``k`` logarithm of ``x``.
+
+    Uses the change-of-base formula::
+
+        log_k(x) = ln(x) / ln(k)
+
+    Args:
+        x: A positive real number.
+        k: The base of the logarithm (positive real number != 1).
+
+    Returns:
+        The base-``k`` logarithm of ``x`` as a float.
+    """
     return math.log(x)/math.log(k)
 
 def prob2score(prob):
+    """Convert a probability to a Phred-like quality score.
+
+    Computes ``-10 * log10(prob)``, so a probability of 1/100 maps to
+    a score of 20 (the standard Phred-score convention).
+
+    Args:
+        prob: A probability value (float in (0, 1]).
+
+    Returns:
+        A float quality score equal to ``-10 * log10(prob)``.  Returns
+        -1 if any exception is raised (e.g. ``prob=0``).
+    """
     #1/100 -> 20
     try:
         return -10*float(math.log10(float(prob)))
@@ -372,10 +409,32 @@ def prob2score(prob):
         return -1
 
 def p2bits(p):
-    """Takes p-value and returns negative log2"""
+    """Convert a p-value to bits of evidence (negative log base-2).
+
+    Computes ``-log2(p)``, which quantifies the evidence against the
+    null hypothesis in bits.
+
+    Args:
+        p: A p-value (float in (0, 1]).
+
+    Returns:
+        A float equal to ``-log2(p)``.  Higher values indicate stronger
+        evidence against the null.
+    """
     return -log2(p)
 
 def factorial(n):
+    """Compute n! (n factorial) iteratively.
+
+    Multiplies all integers from ``n`` down to 1.
+
+    Args:
+        n: A non-negative integer.
+
+    Returns:
+        An integer equal to ``n * (n-1) * ... * 2 * 1``.  Returns 1
+        when ``n`` is 0 or 1.
+    """
     result = 1
     for i in range(n,0,-1):
         #print i
@@ -386,18 +445,63 @@ def factorial(n):
 #Poisson
 ###########
 def poisson_expected(rate):
+    """Print a table of Poisson probabilities for counts 1 to 49.
+
+    For each integer ``x`` from 1 to 49, prints the Poisson probability
+    ``P(X = x; rate)`` and the expected count in a population of 12 million::
+
+        x   P(X=x)   12000000 * P(X=x)
+
+    Args:
+        rate: The Poisson rate parameter (expected number of events).
+    """
     for x in range(1,50,1):
         p = poisson(rate,x)
         print(f"{x}\t{p}\t{12000000*p}")
 
 def poisson(rate, x):
-    """Returns the probability of observing a count of x"""
+    """Compute the Poisson probability of observing exactly ``x`` events.
+
+    Evaluates the Poisson PMF::
+
+        P(X = x; rate) = exp(-rate) * rate^x / x!
+
+    Args:
+        rate: The expected number of events (lambda, must be non-negative).
+        x: The observed count (non-negative integer).
+
+    Returns:
+        The probability P(X = x) as a float.
+    """
     return math.exp(-rate)*(rate**x)/factorial(x)
 
 ######################
 #Binomial Distribution
 #######################
 def binomial_likelihood_ratio(ps,k,n):
+    """Compute the likelihood ratio of two binomial hypotheses.
+
+    Given two probability parameters ``ps[0]`` (null hypothesis H0) and
+    ``ps[1]`` (alternative hypothesis H1), computes::
+
+        LR = log(P(k | p=ps[1], n)) / P(k | p=ps[0], n)
+
+    Note:
+        The formula mixes log and linear likelihoods and is not the
+        standard log-likelihood ratio test; see :func:`binomial_log_likelihood_ratio`
+        for the standard implementation.
+
+    Args:
+        ps: A 2-element list ``[p0, p1]`` where ``p0`` is the null
+            probability and ``p1`` is the alternative probability.
+        k: The observed number of successes.
+        n: The total number of trials.
+
+    Returns:
+        A float representing the likelihood ratio.  Returns
+        ``sys.maxsize`` with a warning message if the null hypothesis
+        likelihood is 0.
+    """
     # p[0] is the null hypothesis
     # p[1] is the hypothesis being tested
     assert(len(ps)==2)
@@ -413,20 +517,83 @@ def binomial_likelihood_ratio(ps,k,n):
         return sys.maxsize
 
 def binomial_log_likelihood_ratio(ps,k,n):
+    """Compute the log-likelihood ratio of two binomial hypotheses.
+
+    Calculates::
+
+        LLR = log P(k | p=ps[1], n) - log P(k | p=ps[0], n)
+
+    where each log probability is computed by :func:`log_binomial`.
+    A positive LLR supports the alternative hypothesis ``ps[1]`` over
+    the null ``ps[0]``.
+
+    Args:
+        ps: A 2-element list ``[p0, p1]`` where ``p0`` is the null
+            success probability and ``p1`` is the alternative.
+        k: The observed number of successes.
+        n: The total number of trials.
+
+    Returns:
+        The log-likelihood ratio as a float.
+    """
     return log_binomial(ps[1],k,n) - log_binomial(ps[0],k,n)
 
 def log_binomial(p,k,n):
+    """Compute the log probability of the binomial PMF.
+
+    Returns the natural log of P(X = k) for X ~ Binomial(n, p)::
+
+        log P(k; n, p) = log C(n, k) + k*log(p) + (n-k)*log(1-p)
+
+    Args:
+        p: The probability of success per trial (float in (0, 1)).
+        k: The number of successes (non-negative integer).
+        n: The number of trials (integer >= k).
+
+    Returns:
+        The natural log of the binomial PMF as a float.
+    """
     # the log probability of seeing exactly k successes in n trials
     # given the probability of success is p
     return log_n_choose_k(n,k)+math.log(p)*k+math.log(1-p)*(n-k)
 
 def binomial(p,k,n):
+    """Compute the binomial probability P(X = k; n, p).
+
+    Calculates the probability of observing exactly ``k`` successes in
+    ``n`` independent Bernoulli trials each with success probability
+    ``p``::
+
+        P(X = k) = C(n, k) * p^k * (1-p)^(n-k)
+
+    Args:
+        p: The probability of success per trial (float in [0, 1]).
+        k: The number of successes (non-negative integer).
+        n: The number of trials (integer >= k).
+
+    Returns:
+        The binomial probability as a float.
+    """
     # probability of seeing exactly k successes in n trials, given
     # the probability of success is p
     #return n_choose_k(n,k)*(p**k)*((1-p)**(n-k))
     return n_choose_k(n,k)*(p**k)*((1-p)**(n-k))
 
 def cumBinomial(p,k,n):
+    """Compute the cumulative binomial probability P(X <= k; n, p).
+
+    Sums the binomial PMF from 0 to ``k`` inclusive::
+
+        P(X <= k) = sum_{j=0}^{k} C(n, j) * p^j * (1-p)^(n-j)
+
+    Args:
+        p: The probability of success per trial (float in [0, 1]).
+        k: The upper bound on the number of successes (non-negative int).
+        n: The number of trials (integer >= k).
+
+    Returns:
+        The cumulative binomial probability P(X <= k) as a float.
+    """
     #Returns the cumulative probability from the binomaial distribution
     Pval = 0.0
     for j in range(0,k+1):
@@ -434,6 +601,25 @@ def cumBinomial(p,k,n):
     return Pval
 
 def n_choose_k(n,k):
+    """Compute the binomial coefficient C(n, k) = n! / (k! * (n-k)!).
+
+    Uses the multiplicative recurrence::
+
+        C(n, k) = (n * (n-1) * ... * (n-k+1)) / (k * (k-1) * ... * 1)
+
+    Exploits the symmetry ``C(n, k) = C(n, n-k)`` to choose the smaller
+    of ``k`` and ``n-k`` for efficiency.
+
+    Args:
+        n: Total number of items (non-negative integer).
+        k: Number of items to choose (non-negative integer, ``k <= n``).
+
+    Returns:
+        The binomial coefficient C(n, k) as a float.
+
+    Raises:
+        AssertionError: If ``k > n``.
+    """
     # (n k) = n! / (k! (n-k)!)
     #
     #         n*(n-1)*(n-2)*....*(n-k+1)
@@ -455,6 +641,25 @@ def n_choose_k(n,k):
     return result
 
 def log_n_choose_k(n,k):
+    """Compute log(C(n, k)) in log space to avoid integer overflow.
+
+    Evaluates the natural logarithm of the binomial coefficient using
+    the additive log form of the multiplicative recurrence::
+
+        log C(n, k) = sum(log(n-i+1) - log(i)  for i in 1..k')
+
+    where ``k' = min(k, n-k)``.
+
+    Args:
+        n: Total number of items (non-negative integer).
+        k: Number of items to choose (non-negative integer, ``k <= n``).
+
+    Returns:
+        The natural log of C(n, k) as a float.
+
+    Raises:
+        AssertionError: If ``k > n``.
+    """
     # (n k) = n! / (k! (n-k)!)
     #
     #         n*(n-1)*(n-2)*....*(n-k+1)
@@ -474,6 +679,25 @@ def log_n_choose_k(n,k):
 #Dictionary Tools
 #################
 def cget(diclist, key, strict=1):
+    """Extract the same key from every item in a list of dicts (or sequences).
+
+    Also known as "cross-get" or "gather".  Iterates over ``diclist``
+    and collects ``item[key]`` for each element.
+
+    Args:
+        diclist: A list of dictionaries or index-accessible objects that
+            all share the specified ``key``.
+        key: The key (or integer index) to look up in each element.
+        strict: If non-zero (default), every element must contain
+            ``key``; raises ``KeyError`` or ``IndexError`` otherwise.
+            If 0, silently skips elements that are falsy or do not
+            contain ``key`` (using ``generic_has_key``).
+
+    Returns:
+        A list of values ``item[key]`` for each item in ``diclist``.
+        When ``strict=1`` the returned list has the same length as
+        ``diclist``.  When ``strict=0`` the length may be shorter.
+    """
     # cross_get was: gather(diclist,key)
     # gathers the same key from a list of dictionaries
     # can also be used in lists

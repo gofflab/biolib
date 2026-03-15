@@ -102,15 +102,31 @@ class CSSeq:
     #    return ('%s\t%s\t%s\t' % (self.name,CSseq,self.sequence))
 
     def returnFasta(self):
+        """Returns the sequence formatted as a two-line FASTA record string.
+
+        Returns:
+            A string of the form '>name\\nsequence'.
+        """
         return ('>%s\n%s' % (self.name,self.sequence))
 
     def returnSHRiMPcsfasta(self):
+        """Returns the sequence in SHRiMP csfasta format with the readcount suffix.
+
+        Returns:
+            A string of the form '>name_xreadcount\\nsequence'.
+        """
         return ('>%s_x%d\n%s') % (self.name,self.readcount,self.sequence)
 
     def returnQual(self):
+        """Returns the quality scores formatted as a two-line FASTA-style qual record.
+
+        Returns:
+            A string of the form '>name\\nq0 q1 q2 ...'.
+        """
         return('>%s\n%s' % (self.name," ".join(q for q in self.qual)))
 
     def printFasta(self):
+        """Prints the sequence as a two-line FASTA record to stdout."""
         print ('>%s\n%s' % (self.name,self.sequence))
 
     def CSToDNA(self):
@@ -167,6 +183,12 @@ class CSSeq:
         return
 
     def nuIDName(self):
+        """Replaces the read name with the nuID encoding of its DNA sequence.
+
+        Converts the sequence to DNA space first if it is currently in
+        colorspace, then encodes it as a nuID and stores the result in
+        self.name.
+        """
         if self.space == "CS":
             tempString = CS2DNA(self.sequence)
         else:
@@ -269,6 +291,20 @@ def CompIter(csfile,qualfile):
             assert ValueError ("It appears that the sequences don't match...have you modified the .csfasta or .qual files?")
 
 def uniqueTableIterator(handle,trim=True):
+    """Yields CSSeq objects from a tab-delimited unique-reads table.
+
+    Reads a two-column tab-delimited file where column 0 is a colorspace
+    read sequence and column 1 is its observation count.  Assigns nuID names
+    and optionally strips the SOLiD linker.
+
+    Args:
+        handle: Readable file-like object containing the unique-reads table.
+        trim: If True (default), strip the SOLiD P2 linker from each read
+            using strip_solid_linker().
+
+    Yields:
+        CSSeq objects with nuID names and readcount set from the table.
+    """
     for line in handle:
         tokens = line.rstrip().split("\t")
         seq = CSSeq(tokens[0],tokens[0],readcount=int(tokens[1]))
@@ -323,6 +359,16 @@ def makeFastq(csfile,qualfile,shortname,outdir="",split=-1,trim=False):
 ########################################################################
 
 def csfasta2fasta(fname):
+    """Converts a .csfasta file to DNA-space FASTA format and prints to stdout.
+
+    Reads each colorspace record, converts it to DNA space, and prints the
+    result as a FASTA record.  Note: due to a bug the CS2DNA conversion and
+    printFasta are referenced as attributes rather than called, so conversion
+    does not actually occur.
+
+    Args:
+        fname: Path to a .csfasta file.
+    """
     handle=open(fname,'r')
     iter=CSFastaIterator(handle)
     for i in iter:
@@ -378,9 +424,20 @@ def uniqueTable(dir=os.getcwd()):
         print(row)
 
 def filterUnique(uniqueFile,minObs=5):
-    """
-    At this point, this function is specific to the H1U and H1NSC samples
-    I need to change that
+    """Filters a unique-reads table and writes separate .csfasta files per sample.
+
+    Reads a tab-delimited unique-reads table and writes reads that meet the
+    minimum observation threshold to sample-specific .csfasta files.
+
+    Note: This function is hard-coded for exactly two samples (H1U and H1NSC)
+    and writes output to 'H1U.csfasta' and 'H1NSC.csfasta' in the current
+    directory.
+
+    Args:
+        uniqueFile: Path to the tab-delimited unique-reads table produced by
+            uniqueTable().  The header line begins with '#'.
+        minObs: Minimum total observation count required for a read to be
+            written to the output (default: 5).
     """
     handle = open(uniqueFile,'r')
     count = 0
