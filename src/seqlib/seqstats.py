@@ -1,4 +1,18 @@
 #!/usr/bin/env python
+"""Statistical utilities for peak enrichment analysis in RNA immunoprecipitation and ChIP-Seq experiments.
+
+Implements a PeakSeq-like approach for comparing experimental (RIP or ChIP)
+BAM files against input/IgG control BAM files.  The pipeline:
+
+1. Segments the genome into fixed-size bins and counts reads in each bin for
+   both the experimental and control samples.
+2. Determines a global normalisation factor (alpha) via linear regression on
+   bins that have reads in both samples.
+3. Tests each interval in a BED file using a binomial model (reads from the
+   experimental sample vs. alpha-scaled control reads) to assign p-values.
+4. Corrects for multiple testing using Benjamini-Hochberg FDR correction.
+5. Outputs results to stdout sorted or filtered by q-value.
+"""
 import getopt
 import math
 import sys
@@ -12,12 +26,16 @@ from . import intervallib, misc, mySam, prob
 #from rpy2 import robjects
 #from seqtools.genome import chr_lengths,genome_length
 
-"""Collection of utilities for determining peak enrichment in xxx-Seq experiments"""
-
 #################
 #Main
 #################
 def main():
+    """Legacy command-line entry point — reads three positional arguments and runs smRNApeakSeq.
+
+    Expects sys.argv to contain: expBam ctlBam bedFile.  Calls smRNApeakSeq
+    with filter=False and the module-level useStrand variable.  Prefer
+    newMain() for proper option parsing.
+    """
     expBam = sys.argv[1]
     ctlBam = sys.argv[2]
     bedFile = sys.argv[3]
@@ -29,6 +47,27 @@ def main():
 #Wrappers
 ########################
 def smRNApeakSeq(expBam,ctlBam,bedFile,cutoff = 0.0001,filter=True,useStrand=True):
+    """Runs the full smRNA/RIP-Seq peak-calling pipeline and writes results to stdout.
+
+    Segments the genome, computes a normalisation factor between experimental
+    and control BAM files, tests each BED interval with a binomial model,
+    applies Benjamini-Hochberg FDR correction, and prints tab-delimited
+    output.
+
+    Args:
+        expBam: Path to a sorted, indexed BAM file from the experimental
+            (RIP/ChIP) sample.
+        ctlBam: Path to a sorted, indexed BAM file from the control (IgG or
+            input) sample.
+        bedFile: Path to a BED file of candidate intervals to test.
+        cutoff: Q-value threshold below which results are printed when filter
+            is True (default: 0.0001).
+        filter: If True, only print intervals with q-value <= cutoff.  If
+            False, print all intervals (default: True).
+        useStrand: If True, count only reads on the same strand as each
+            interval.  If False, count all reads regardless of strand
+            (default: True).
+    """
     #open files
     expHandle = pysam.Samfile(expBam,'rb')
     ctlHandle = pysam.Samfile(ctlBam,'rb')
@@ -151,8 +190,24 @@ def cumBinom(nExp,adjCtl,P=0.5):
     return 1-scipy.stats.binom.cdf(nExp-1,nExp+adjCtl,P)
 
 def testInterval(interval,expHandle,ctlHandle,alpha):
-    """
-    #TODO:Make sure that this is only grabbing the appropriate strand and not both....this can be dangerous
+    """Tests a single genomic interval for strand-aware read enrichment.
+
+    Counts reads on the same strand as the interval from both the experimental
+    and control BAM files, scales the control count by alpha, and returns
+    a binomial p-value.
+
+    Args:
+        interval: An intervallib.Interval object with chr, start, end, and
+            strand attributes.
+        expHandle: A pysam AlignmentFile for the experimental sample.
+        ctlHandle: A pysam AlignmentFile for the control sample.
+        alpha: Normalisation factor (slope from getAlpha) used to scale
+            control counts to match the experimental library size.
+
+    Returns:
+        A tuple (pVal, nExp, adjCtl) where pVal is the binomial p-value,
+        nExp is the raw experimental read count, and adjCtl is the
+        alpha-scaled control read count.
     """
 
     #expCounter = mySam.Counter()
@@ -172,6 +227,24 @@ def testInterval(interval,expHandle,ctlHandle,alpha):
     return cumBinom(nExp,nCtl*alpha),nExp,nCtl*alpha
 
 def testIntervalNoStrand(interval,expHandle,ctlHandle,alpha):
+    """Tests a single genomic interval for read enrichment ignoring strand.
+
+    Counts all reads (both strands) overlapping the interval from experimental
+    and control BAM files, scales control count by alpha, and returns a
+    binomial p-value.
+
+    Args:
+        interval: An intervallib.Interval object with chr, start, and end
+            attributes.
+        expHandle: A pysam AlignmentFile for the experimental sample.
+        ctlHandle: A pysam AlignmentFile for the control sample.
+        alpha: Normalisation factor used to scale control counts.
+
+    Returns:
+        A tuple (pVal, nExp, adjCtl) where pVal is the binomial p-value,
+        nExp is the raw experimental read count, and adjCtl is the
+        alpha-scaled control read count.
+    """
     expCounter = mySam.Counter()
     ctlCounter = mySam.Counter()
     expFetch = expHandle.fetch(interval.chr,interval.start,interval.end,callback=expCounter)
@@ -235,19 +308,56 @@ def poissonProb(lamb,height):
 #########################
 
 def slope(xarray,yarray):
-    """Uses numpy, in fact assumes that the list arguments are numpy arrays."""
+    """Computes the slope of the ordinary least-squares regression line.
+
+    Uses numpy arrays for efficient computation.  The slope is:
+        m = (n*sum(x*y) - sum(x)*sum(y)) / (n*sum(x^2) - (sum(x))^2)
+
+    Args:
+        xarray: A numpy array of x (independent variable) values.
+        yarray: A numpy array of y (dependent variable) values of the same
+            length as xarray.
+
+    Returns:
+        The slope of the linear regression line (float).
+    """
     n = float(len(xarray))
     m = (n*sum(xarray*yarray)-sum(xarray)*sum(yarray))/(n*sum(xarray**2)-(sum(xarray))**2)
     return m
 
 def intercept(xarray,yarray):
-    """Uses numpy, in fact assumes that the list arguments are numpy arrays."""
+    """Computes the y-intercept of the ordinary least-squares regression line.
+
+    Uses numpy arrays for efficient computation.  The intercept is:
+        b = (sum(y) - m*sum(x)) / n
+
+    Args:
+        xarray: A numpy array of x (independent variable) values.
+        yarray: A numpy array of y (dependent variable) values of the same
+            length as xarray.
+
+    Returns:
+        The y-intercept of the linear regression line (float).
+    """
     m = slope(xarray,yarray)
     n = float(len(xarray))
     b = (sum(yarray)-m*(sum(xarray)))/n
     return b
 
 def getSegmentCounts(bamHandle,segSize=10000):
+    """Counts reads in fixed-size genomic bins across all chromosomes in a BAM file.
+
+    Iterates over all chromosomes and divides each into bins of segSize base
+    pairs, counting the total number of reads per bin using mySam.Counter.
+
+    Args:
+        bamHandle: A pysam AlignmentFile opened for reading.
+        segSize: Bin size in base pairs (default: 10000).
+
+    Returns:
+        A numpy array of read counts, one element per bin, ordered by
+        chromosome then genomic position.
+    """
     chrs = bamHandle.references
     chr_lengths = bamHandle.lengths
     bins = numpy.zeros(sum(chr_lengths)//segSize+len(chrs))
@@ -263,11 +373,43 @@ def getSegmentCounts(bamHandle,segSize=10000):
     return bins
 
 def getNonZeroIndices(bins1,bins2):
+    """Returns the indices of bins that have non-zero counts in both arrays.
+
+    Used to restrict linear regression normalisation to bins that are
+    informative in both the experimental and control samples.
+
+    Args:
+        bins1: A numpy array of read counts (e.g. experimental sample bins).
+        bins2: A numpy array of read counts (e.g. control sample bins) of
+            the same length as bins1.
+
+    Returns:
+        A list of integer indices where both bins1 and bins2 have non-zero
+        values.
+    """
     set1 = set(numpy.nonzero(bins1)[0])
     set2 = set(numpy.nonzero(bins2)[0])
     return list(set1.intersection(set2))
 
 def getAlpha(expBins,ctlBins,index):
+    """Computes the normalisation factor (alpha) between experimental and control samples.
+
+    Fits a linear regression through the origin on the subset of bins
+    specified by index, treating control counts as x and experimental counts
+    as y.  The slope is used to scale the control sample to the experimental
+    library size.
+
+    Args:
+        expBins: Numpy array of per-bin read counts for the experimental
+            sample.
+        ctlBins: Numpy array of per-bin read counts for the control sample.
+        index: List of integer indices identifying informative bins (non-zero
+            in both arrays).
+
+    Returns:
+        Alpha (float): the slope of the linear regression, used as the
+        multiplicative scaling factor for control counts.
+    """
     return slope(ctlBins[index],expBins[index])
 
 def getAlphaFromLinReg(exp,ctl,r):
@@ -304,10 +446,35 @@ Options:
 '''
 
 class Usage(Exception):
+    """Exception raised for command-line usage errors in seqstats.
+
+    Attributes:
+        msg: Human-readable explanation of the error or the help message.
+    """
     def __init__(self, msg):
+        """Initialises a Usage exception.
+
+        Args:
+            msg: Human-readable error or help text.
+        """
         self.msg = msg
 
 def newMain(argv=None):
+    """Command-line entry point for the seqstats peak-calling pipeline.
+
+    Parses command-line options and delegates to smRNApeakSeq.  Supports
+    optional strand-specific counting, q-value filtering, and verbose output.
+
+    Args:
+        argv: List of command-line argument strings.  Defaults to sys.argv
+            when None.
+
+    Returns:
+        2 on usage error, None on success.
+
+    Raises:
+        SystemExit: Indirectly via sys.exit() on usage error.
+    """
     if argv is None:
         argv = sys.argv
     try:

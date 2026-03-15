@@ -1,9 +1,15 @@
 #!/usr/bin/env python
-'''
-Created on Jun 25, 2009
+"""Genomic interval data structures and utilities.
 
-@author: lgoff
-'''
+Provides the Interval and SplicedInterval classes for representing genomic
+regions, along with a collection of functions for parsing BED/FASTA files,
+performing interval arithmetic (overlaps, distances, TSS maps), and converting
+intervals to various output formats.
+
+Originally created on Jun 25, 2009.
+
+Author: lgoff
+"""
 # import genomelib
 import copy
 import os
@@ -22,10 +28,46 @@ RNAFOLD = 'RNAfold -noPS'
 #This is very human-specific at this point
 
 class Interval:
-    """Basic interval class, try to use ChipInterval or SeqInterval if possible...
-        At this point, the Interval class is rather human specific so avoid calls to self.fetchSequence() or self.getChrNum(), etc...
+    """Basic genomic interval class.
+
+    Represents a genomic region defined by chromosome, start, end, and strand.
+    Try to use ChipInterval or SeqInterval if possible. At this point, the
+    Interval class is rather human-specific, so avoid calls to
+    self.fetchSequence() or self.getChrNum() in non-human contexts.
+
+    Attributes:
+        chr: Chromosome name (e.g. "chr1").
+        start: 0-based start coordinate.
+        end: End coordinate (inclusive).
+        strand: Strand orientation ("+", "-", or "*").
+        score: Floating-point score; can proxy for read count.
+        readcount: Integer read count for the interval (-1 if unset).
+        name: Human-readable name for the interval.
+        sequence: DNA sequence string for the interval (empty if not fetched).
+        data: Dictionary of arbitrary key-value metadata.
+        genome: Genome build identifier (default "hg18").
+        TSS: Transcription start site coordinate based on strand.
     """
     def __init__(self, chr, start, end, strand="*", score=0.0, readcount = -1,name="",sequence = "",data={},genome="hg18"):
+        """Initialize an Interval.
+
+        If the first argument is an existing Interval instance, all attributes
+        are copied from it (copy constructor behaviour).
+
+        Args:
+            chr: Chromosome name string, or an existing Interval to copy.
+            start: 0-based start coordinate.
+            end: End coordinate (inclusive).
+            strand: Strand orientation: "+", "-", or "*".
+            score: Floating-point score (default 0.0).
+            readcount: Integer read count (default -1 meaning unset).
+            name: Name string. If empty, a "chr:start-end:strand" label is
+                auto-generated.
+            sequence: DNA sequence string (default empty string).
+            data: Dictionary of arbitrary metadata (default empty dict).
+            genome: Genome build string used for sequence fetching
+                (default "hg18").
+        """
 
         #Check if creating new instance from old instance as 1st arg
         if isinstance(chr,Interval):
@@ -67,6 +109,14 @@ class Interval:
             self.endIndex = -1
 
     def getTSS(self):
+        """Return the transcription start site coordinate.
+
+        Sets and returns self.TSS based on strand: start for "+" strand,
+        end for "-" strand.
+
+        Returns:
+            Integer coordinate of the TSS.
+        """
         if self.strand == "+":
             self.TSS = self.start
         elif self.strand == "-":
@@ -90,7 +140,17 @@ class Interval:
         return [x.score for x in self.children]
 
     def makeValMap(self,value = 'readcount'):
-        """Check these two to see which one is right..."""
+        """Build a positional value map across the interval from child intervals.
+
+        Creates self.valMap, a numpy array of length len(self) where each
+        position holds the average of the specified attribute over all child
+        intervals that cover that position. Positions with no coverage are set
+        to -1.
+
+        Args:
+            value: Name of the Interval attribute to average at each position
+                (default "readcount").
+        """
         self.valMap = np.zeros(len(self))
         self.valMap = self.valMap-1
         myTmp = []
@@ -104,32 +164,48 @@ class Interval:
                 self.valMap[nt]=sum(myTmp[nt])/len(myTmp[nt])
 
     def __iter__(self):
+        """Iterate over characters in self.sequence."""
         return iter(self.sequence)
 
     def __getitem__(self,key):
+        """Return character(s) at index/slice key from self.sequence."""
         return self.sequence[key]
 
     def __repr__(self):
+        """Return the interval name, or a chr:start-end:strand string if name is empty."""
         if self.name == "":
             return "%s:%d-%d:%s" % (self.chr,self.start,self.end,self.strand)
         else:
             return self.name
 
     def __neg__(self):
+        """Return a new Interval with the strand flipped."""
         strandLookup = {"+":"-","-":"+"}
         newStrand = strandLookup[self.strand]
         return Interval(self.chr,self.start,self.end,newStrand,self.score,self.readcount)
 
     def __len__(self):
+        """Return the length of the interval in bases (end - start + 1)."""
         return self.end-self.start+1
 
     def __str__(self):
+        """Return self.sequence if set, otherwise self.name."""
         if self.sequence != "":
             return self.sequence
         else:
             return self.name
 
     def __lt__(self, b):
+        """Compare intervals by chromosomal position.
+
+        Compares first by chromosome number, then by midpoint position.
+
+        Args:
+            b: Another Interval to compare against.
+
+        Returns:
+            True if self sorts before b.
+        """
         chr_test_a = self.getChrNum()
         chr_test_b = b.getChrNum()
         if chr_test_a != chr_test_b:
@@ -139,15 +215,19 @@ class Interval:
         return mid1 < mid2
 
     def __eq__(self, b):
+        """Return True if self and b have the same chr, start, and end."""
         return self.equals(b)
 
     def __le__(self, b):
+        """Return True if self is less than or equal to b."""
         return self.__lt__(b) or self.__eq__(b)
 
     def __gt__(self, b):
+        """Return True if self is greater than b."""
         return not self.__le__(b)
 
     def __ge__(self, b):
+        """Return True if self is greater than or equal to b."""
         return not self.__lt__(b)
 
     def windows(self,windowSize):
@@ -160,21 +240,53 @@ class Interval:
         return "%s\t%d\t%d\t%s\t%.2f\t%s" %(self.chr,self.start,self.end,self.name,self.__dict__[value],self.strand)
 
     def toUCSC(self):
+        """Return a UCSC browser region string (chr:start-end).
+
+        Returns:
+            String formatted as "chr:start-end".
+        """
         return "%s:%d-%d" % (self.chr,self.start,self.end)
 
     def toStringNumIGV(self):
+        """Return an IGV-compatible numeric chromosome and start string.
+
+        Strips the "chr" prefix from the chromosome name.
+
+        Returns:
+            Tab-delimited string of numeric chromosome and start position.
+        """
         return "%s\t%d" % (self.chr.replace("chr",""),self.start)
 
     def toFasta(self):
+        """Return the interval as a FASTA-formatted string.
+
+        Returns:
+            String with a FASTA header line followed by self.sequence.
+        """
         return ">%s\n%s" % (self.name,self.sequence)
 
     def getString(self):
+        """Return a chr:start-end:strand string representation.
+
+        Returns:
+            String formatted as "chr:start-end:strand".
+        """
         return "%s:%d-%d:%s" % (self.chr,self.start,self.end,self.strand)
 
     def getScore(self):
+        """Return self.score.
+
+        Returns:
+            The floating-point score of the interval.
+        """
         return self.score
 
     def getStrand(self):
+        """Return self.strand.
+
+        Returns:
+            The strand string ("+", "-", or "*").
+        """
         return self.strand
 
     def mature(self,start,end):
@@ -225,7 +337,19 @@ class Interval:
             return False
 
     def findDist(self,b):
-        """
+        """Return the signed distance from self's TSS to b's relevant end.
+
+        The relevant end of b depends on each interval's strand:
+        - self "+" and b "+": b.start - self.TSS
+        - self "+" and b "-": b.end - self.TSS
+        - self "-" and b "+": self.TSS - b.start
+        - self "-" and b "-": self.TSS - b.end
+
+        Args:
+            b: Another Interval.
+
+        Returns:
+            Signed integer distance.
         """
         if self.strand == "+" and b.strand == "+":
             return b.start-self.TSS
@@ -261,6 +385,14 @@ class Interval:
         else: return self.chr
 
     def fetchSequence(self):
+        """Fetch and store the genomic sequence for this interval via pygr.
+
+        Uses self.genome to connect to the genome database. On "-" strand
+        the reverse complement is returned. Sets and returns self.sequence.
+
+        Returns:
+            The DNA sequence string for the interval.
+        """
         if self.genome != "":
             genome = genomelib.pygrConnect(self.genome)
             seq = genome[self.chr][self.start-1:self.end]
@@ -297,6 +429,20 @@ class Interval:
         return self.gc
 
     def getPromoter(self,promUp=2000,promDown=0):
+        """Return an Interval representing the promoter region of self.
+
+        For "+" strand, the promoter spans [start - promUp, start + promDown].
+        For "-" strand, the promoter spans [end - promDown, end + promUp].
+
+        Args:
+            promUp: Number of bases upstream of the TSS to include
+                (default 2000).
+            promDown: Number of bases downstream of the TSS to include
+                (default 0).
+
+        Returns:
+            A new Interval representing the promoter region.
+        """
         if self.strand == "+":
             align = Interval(self.chr,self.start-promUp,self.start+promDown,self.strand,score=self.score,name=self.name+"_promoter")
         elif self.strand == "-":
@@ -304,6 +450,12 @@ class Interval:
         return align
 
     def fold(self):
+        """Predict RNA secondary structure of self.sequence using RNAfold.
+
+        Runs RNAfold via subprocess on self.sequence. Sets self.structure to
+        the dot-bracket notation and self.mfe to the minimum free energy
+        (as a float). If parsing fails, both are set to the string "nan".
+        """
         command = "echo '%s' | %s" % (self.sequence,RNAFOLD)
         output = subprocess.getoutput(command)
         if len(output.split())>2:
@@ -314,15 +466,31 @@ class Interval:
         return
 
     def getStructureFasta(self):
+        """Return the predicted RNA structure as a FASTA-formatted string.
+
+        Returns:
+            String with a FASTA header followed by self.structure in
+            dot-bracket notation.
+        """
         return ">%s\n%s" % (self.name,self.structure)
 
     def isPlus(self):
+        """Return True if the interval is on the "+" strand.
+
+        Returns:
+            True if self.strand == "+", otherwise False.
+        """
         if self.strand=="+":
             return True
         else:
             return False
 
     def isMinus(self):
+        """Return True if the interval is on the "-" strand.
+
+        Returns:
+            True if self.strand == "-", otherwise False.
+        """
         if self.strand=="-":
             return True
         else:
@@ -342,26 +510,84 @@ class Interval:
         return dic
 
     def intersects(self,b,start='start',end='end',offset=0):
+        """Return True if self and b overlap on the same chromosome and strand.
+
+        Args:
+            b: Another Interval.
+            start: Unused parameter name placeholder (default "start").
+            end: Unused parameter name placeholder (default "end").
+            offset: Optional integer offset added to b.end for looser matching
+                (default 0).
+
+        Returns:
+            True if the intervals share chr and strand and their coordinates
+            overlap (optionally expanded by offset).
+        """
         if self.chr == b.chr and self.strand==b.strand:
             return not(self.start>b.end+offset or b.start>self.end+offset)
         else:
             return False
 
     def grow5_prime(self,length):
+        """Extend the interval by length bases in the 5-prime direction.
+
+        For "+" strand, decreases self.start by length.
+        For "-" strand, increases self.end by length.
+
+        Args:
+            length: Number of bases to extend.
+        """
         if self.strand == "+":
             self.start = self.start-length
         elif self.strand == "-":
             self.end = self.end+length
 
     def grow3_prime(self,length):
+        """Extend the interval by length bases in the 3-prime direction.
+
+        For "+" strand, increases self.end by length.
+        For "-" strand, decreases self.start by length.
+
+        Args:
+            length: Number of bases to extend.
+        """
         if self.strand == "+":
             self.end = self.end+length
         elif self.strand == "-":
             self.start = self.start-length
 
 class SplicedInterval(Interval):
-    """Extends Interval and Adds/overwrites methods to incorporate spliced elements"""
+    """Genomic interval with spliced (multi-exon) structure.
+
+    Extends Interval with exon coordinate information parsed from BED12-style
+    blockSizes and blockStarts fields. Overrides __len__ to return the spliced
+    (CDS) length rather than the genomic footprint length.
+
+    Attributes:
+        exonLengths: List of integer exon lengths.
+        exonOffsets: List of integer exon start offsets relative to self.start.
+        exonStarts: List of absolute genomic start coordinates for each exon.
+        exonEnds: List of absolute genomic end coordinates for each exon.
+        numExons: Number of exons.
+    """
     def __init__(self, chr, start, end, strand="*",exonLengths=[],exonOffsets=[],score=0.0, readcount = -1,name="",sequence = "",data={},genome="hg18"):
+        """Initialize a SplicedInterval.
+
+        Args:
+            chr: Chromosome name string.
+            start: Genomic start coordinate.
+            end: Genomic end coordinate.
+            strand: Strand orientation (default "*").
+            exonLengths: Comma-separated string of exon lengths (BED12 field).
+            exonOffsets: Comma-separated string of exon offsets from start
+                (BED12 field).
+            score: Floating-point score (default 0.0).
+            readcount: Integer read count (default -1).
+            name: Interval name string.
+            sequence: DNA sequence string.
+            data: Dictionary of arbitrary metadata.
+            genome: Genome build string (default "hg18").
+        """
         Interval.__init__(self,chr,start,end,strand,score=score, readcount = readcount,name=name,sequence = sequence,data=data,genome=genome)
         self.exonLengths = [int(x) for x in exonLengths.rstrip(",").split(",")]
         self.exonOffsets = [int(x) for x in exonOffsets.rstrip(",").split(",")]
@@ -370,10 +596,15 @@ class SplicedInterval(Interval):
         self.numExons = len(self.exonStarts)
 
     def __len__(self):
+        """Return the total spliced (CDS) length of all exons."""
         return self.CDSlen()
 
     def intervalLen(self):
-        """Length of genomic footprint for self (ie. end-start+1)"""
+        """Length of genomic footprint for self (ie. end-start+1)
+
+        Returns:
+            Integer genomic span from start to end inclusive.
+        """
         return self.end-self.start+1
 
     def CDSlen(self):
@@ -722,6 +953,16 @@ def fetchRefSeqByChrom(RefSeqBed="/fg/compbio-t/lgoff/magda/references/human/tra
     return res
 
 def makeTSSBed(fname,outFname):
+    """Write a BED file of TSS positions derived from another BED file.
+
+    For each interval, the end coordinate is collapsed to the start ("+") or
+    the start is collapsed to the end ("-") to produce a single-base TSS
+    interval.
+
+    Args:
+        fname: Path to the input BED file.
+        outFname: Path to the output BED file to write.
+    """
     iter = parseBed(fname)
     outHandle = open(outFname,'w')
     for i in iter:
@@ -733,7 +974,17 @@ def makeTSSBed(fname,outFname):
         print(myInterval.toBed(), file=outHandle)
 
 def parseGalaxyCons(fname):
-    """Parses bed-like output of conservation fetch from Galaxy webserver"""
+    """Parse bed-like conservation output from the Galaxy webserver.
+
+    Reads a tab-delimited file where field 6 (index 6) contains the average
+    phastCons conservation score.
+
+    Args:
+        fname: Path to the Galaxy conservation BED-like file.
+
+    Yields:
+        Interval objects with score set to the phastCons value.
+    """
     handle=open(fname,'r')
     for line in handle:
         if line.startswith("#"):
@@ -754,7 +1005,19 @@ def parseGalaxyCons(fname):
         yield res
 
 def findNearest(myInterval,IntervalList):
-    """It would be nice to write some sort of binary search for Intervals"""
+    """Find the nearest interval to myInterval in IntervalList by start distance.
+
+    Performs a linear scan. Only considers intervals with a positive distance
+    (i.e., intervals that are downstream/to the right of myInterval).
+
+    Args:
+        myInterval: Reference Interval.
+        IntervalList: List of Interval objects to search.
+
+    Returns:
+        The Interval in IntervalList with the smallest positive distance to
+        myInterval, or 0 if no such interval exists.
+    """
 
     myDist = 9999999999999999999
     res = 0

@@ -1,7 +1,21 @@
 #!/usr/bin/env python
 
 '''
-Created on Sep 1, 2010
+Implementation of the Miner Method for qPCR crossing-point determination.
+
+Provides the four-parameter logistic (4PL) model (``qpcrFit``), an
+exponential-phase nonlinear regression model (``nlmFit``), and three
+crossing-point estimation methods derived from the fitted 4PL parameters:
+
+- FDM (First Derivative Maximum)
+- SDM (Second Derivative Maximum)
+- SPE (Signal-to-noise / Percentage of Efficiency)
+
+Also contains an example fit executed at import time using a hard-coded
+sample fluorescence curve (``myData``).
+
+Reference: Zhao & Fernald (2005). "Comprehensive algorithm for
+quantitative real-time polymerase chain reaction." J Comput Biol.
 
 @author: lgoff
 '''
@@ -24,6 +38,15 @@ cycles = list(map(float,range(1,len(myData)+1))) # Some platforms are fractional
 #Misc
 #########
 def nthRoot(num,n):
+    """Compute the nth root of a number.
+
+    Args:
+        num: The base value (numeric).
+        n: The root degree (numeric, must not be zero).
+
+    Returns:
+        ``num ** (1.0 / n)`` as a float.
+    """
     return num ** (1.0/n)
 
 #############
@@ -33,45 +56,138 @@ def nthRoot(num,n):
 #errfunc = lambda p,x,y: y-fitfunc(p,x) #Distance to the target function (residuals)
 
 def fit(p,x):
-    """
-    Depricated in favor of qpcrFit to use optimize.curve_fit()
-    f(x) Logistic model for qPCR Data
-    fitfunc = lambda p,x: p[3]+(p[0]/(1+((x/p[2])**p[1]))) # From actual paper (Zhao et al) where p = [a,b,x_0,y_0]
+    """Evaluate the four-parameter logistic (4PL) model using a parameter vector.
+
+    Deprecated in favor of ``qpcrFit``, which is compatible with
+    ``scipy.optimize.curve_fit``.
+
+    The model is:
+        f(x) = p[3] + p[0] / (1 + (x / p[2])^p[1])
+
+    where ``p = [a, b, x0, y0]`` following the notation in Zhao et al.
+
+    Args:
+        p: Sequence of four model parameters ``[a, b, x0, y0]``:
+            a  – amplitude (difference between upper and lower asymptotes),
+            b  – slope/steepness,
+            x0 – inflection point (cycle at midpoint),
+            y0 – baseline fluorescence (lower asymptote).
+        x: Cycle number (scalar or array).
+
+    Returns:
+        Predicted fluorescence value(s) at cycle ``x``.
     """
     return (p[3]+(p[0]/(1+((x/p[2])**p[1]))))
 
 def qpcrFit(x,a,b,x0,y0):
-    """Same as fit but designed to run with optimize.curve_fit"""
+    """Evaluate the four-parameter logistic (4PL) model for qPCR fluorescence data.
+
+    Implements the model from Zhao et al.:
+        f(x) = y0 + a / (1 + (x / x0)^b)
+
+    Designed for use with ``scipy.optimize.curve_fit``.
+
+    Args:
+        x: Cycle number (scalar or array).
+        a: Amplitude parameter (difference between upper and lower
+           asymptotes).
+        b: Slope/steepness parameter.
+        x0: Inflection point (cycle at the midpoint of the curve).
+        y0: Baseline fluorescence (lower asymptote).
+
+    Returns:
+        Predicted fluorescence value(s) at cycle ``x``.
+    """
     return (y0+(a/(1+((x/x0)**b))))
 
 def qpcrFitResiduals(x,y,a,b,x0,y0):
-    """
-    Residuals:
-    errfunc = lambda p,x,y: y-fitfunc(p,x) #Distance to the target function (residuals)
+    """Compute residuals between observed fluorescence and the 4PL model.
+
+    Calculates ``y - qpcrFit(x, a, b, x0, y0)``.
+
+    Args:
+        x: Cycle number(s) (scalar or array).
+        y: Observed fluorescence value(s).
+        a: Amplitude parameter.
+        b: Slope/steepness parameter.
+        x0: Inflection point (cycle at midpoint).
+        y0: Baseline fluorescence (lower asymptote).
+
+    Returns:
+        Residual value(s) ``y - predicted``.
     """
     return y-qpcrFit(x,a,b,x0,y0)
 
 def nlmFit(x,a,b,y0):
-    """
-    Non-linear regression function to optimize for windows in exponential phase
-    here p = [a,b,y0]
+    """Evaluate the exponential nonlinear regression model for the exponential phase.
+
+    Models the exponential amplification phase as:
+        f(x) = y0 + a * (b ^ x)
+
+    Used for iterative nonlinear regression (iNLR) on windows within the
+    exponential phase. Parameters are ``[a, b, y0]``.
+
+    Args:
+        x: Cycle number (scalar or array).
+        a: Amplitude scaling factor.
+        b: Per-cycle amplification factor (related to efficiency: b ~ E).
+        y0: Baseline offset.
+
+    Returns:
+        Predicted fluorescence value(s) at cycle ``x``.
     """
     return y0+(a*(b**x))
 
 def nlmFitResiduals(x,y,a,b,y0):
-    """
-    Residuals:
-    errfunc = lambda p,x,y: y-nlmFit(x,a,b,y0) #Distance to the target function (residuals)
+    """Compute residuals between observed fluorescence and the exponential NLM model.
+
+    Calculates ``y - nlmFit(x, a, b, y0)``.
+
+    Args:
+        x: Cycle number(s) (scalar or array).
+        y: Observed fluorescence value(s).
+        a: Amplitude scaling factor.
+        b: Per-cycle amplification factor.
+        y0: Baseline offset.
+
+    Returns:
+        Residual value(s) ``y - predicted``.
     """
     return y-nlmFit(x,a,b,y0)
 
 def CP_FDM(p):
+    """Compute the crossing-point using the First Derivative Maximum (FDM) method.
+
+    Args:
+        p: Sequence of four fitted 4PL parameters ``[a, b, x0, y0]``.
+
+    Returns:
+        The FDM crossing-point cycle number as a float.
+    """
     return (p[2]*nthRoot(((p[1]-1)/(p[1]+1)),p[1]))
 
 def CP_SDM(p):
+    """Compute the crossing-point using the Second Derivative Maximum (SDM) method.
+
+    Args:
+        p: Sequence of four fitted 4PL parameters ``[a, b, x0, y0]``.
+
+    Returns:
+        The SDM crossing-point cycle number as a float.
+    """
     return p[2]*nthRoot((np.sqrt((3*p[1]**2)*(p[1]**2-1))-(2*(1-p[1]**2)))/((p[1]**2)+(3*p[1])+2),p[1])
 
 def CP_SPE(p,rNoise):
+    """Compute the crossing-point using the Signal-to-Noise (SPE) method.
+
+    Args:
+        p: Sequence of four fitted 4PL parameters ``[a, b, x0, y0]``.
+        rNoise: Baseline noise estimate (standard error of the ``y0``
+            parameter, i.e., ``RNoise``).
+
+    Returns:
+        The SPE crossing-point cycle number as a float.
+    """
     return (p[2]*nthRoot(((p[0]-rNoise)/rNoise),p[1]))
 
 

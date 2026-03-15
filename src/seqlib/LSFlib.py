@@ -1,8 +1,13 @@
-'''
-Created on Jun 29, 2011
+"""Utilities for submitting and monitoring jobs on an IBM Platform LSF cluster.
 
-@author: lgoff
-'''
+Provides the LSFJob class for constructing, submitting, polling, killing, and
+waiting on LSF batch jobs via the bsub/bjobs/bkill command-line tools.  Also
+supports a 'local' pseudo-queue for running commands directly on the current
+host without LSF.
+
+Designed for use with Harvard's Odyssey LSF cluster but applicable to any
+Platform LSF installation.
+"""
 import os
 import re
 import subprocess
@@ -19,26 +24,73 @@ lsf_default_queue = "normal_parallel" # normal_parallel  since it has less users
 #Error Handling
 #######################
 class LSFError(Exception):
-	"""Base class for exceptions in this module."""
+	"""Exception raised for LSF-related errors.
+
+	Attributes:
+		value: String or object describing the error condition.
+	"""
 	def __init__(self,value):
+		"""Initialises an LSFError with an error value.
+
+		Args:
+			value: A string or object describing the LSF error.
+		"""
 		self.value = value
+
 	def __str__(self):
+		"""Returns a string representation of the error value."""
 		return repr(self.value)
 
 #################
 #Base Class
 #################
 class LSFJob(object):
-	'''
-	LSF Job
-	'''
+	"""Represents a single LSF batch job with lifecycle management.
 
+	Constructs the bsub command string, submits the job to LSF (or runs it
+	locally), and provides methods to poll job status, wait for completion,
+	and kill the job.
+
+	Attributes:
+		cmd_str: The shell command to execute.
+		queue: LSF queue name (or 'local' for local execution).
+		outfile: Path to the stdout capture file.
+		errfile: Path to the stderr capture file.
+		job_name: Optional LSF job name.
+		group: Optional LSF job group.
+		job_mem: Memory requirement in GB (capped at lsf_mem global).
+		submit_flag: True after the job has been submitted.
+		complete: True after the job has finished.
+		status: Current job status string (e.g. 'PEND', 'RUN', 'DONE').
+		jobID: LSF job ID integer (-999 before submission).
+		submit_time: Submission timestamp from bjobs.
+		exec_host: Host on which the job is/was running.
+		submit_host: Host from which the job was submitted.
+		bsub_str: List of tokens forming the complete bsub command.
+	"""
 
 	def __init__(self,cmd_str,job_name=None,job_group=None,blocking=False,outfilename=None,errfilename=None,queue_name=None,job_mem=None,job_cores=1,notify=None):
-		'''
-		Creates instance of LSFJob
-		#Don't use blocking because this is a limiting resource on Odyssey LSF
-		'''
+		"""Creates an LSFJob instance and constructs the bsub command.
+
+		Args:
+			cmd_str: The shell command string to submit as an LSF job.
+			job_name: Optional LSF job name passed to bsub -J.
+			job_group: Optional LSF job group passed to bsub -g.
+			blocking: If True, add -K flag to bsub to block until job
+				completes.  Avoid on Odyssey LSF (limiting resource).
+			outfilename: Path for stdout redirection.  If None, a temporary
+				file in 'tmp/' is created.
+			errfilename: Path for stderr redirection.  If None, a temporary
+				file in 'tmp/' is created.
+			queue_name: LSF queue name.  Defaults to lsf_default_queue.
+				Use 'local' to run without LSF.
+			job_mem: Memory requirement in GB.  Capped at the module-level
+				lsf_mem constant.
+			job_cores: Number of cores requested (stored but not currently
+				used in the bsub command).
+			notify: If truthy, add -N flag to bsub to send email notification
+				on job completion.
+		"""
 		self.cmd_str = cmd_str
 
 		global lsf_default_queue
@@ -108,12 +160,26 @@ class LSFJob(object):
 			self.bsub_str.insert(0,self.cmd_str)
 
 	def __repr__(self):
+		"""Returns a verbose string representation including all attributes."""
 		return "Instance of class LSF Job:\n\t%s\n\tSubmitted: %s\n\t Complete: %s\n" % (self.cmd_str,self.submit_flag,self.complete) + str(self.__dict__)
 
 	def __str__(self):
+		"""Returns the complete bsub command as a space-joined string."""
 		return " ".join(self.bsub_str)
 
 	def submit(self): # wait pend
+		"""Submits the job to LSF (or runs it locally) and waits for it to enter a stable state.
+
+		For LSF jobs, uses subprocess.Popen to call bsub, retrieves the job ID,
+		and polls until the status transitions out of 'SUBMITTED'.  For local
+		jobs, launches the process and returns immediately.
+
+		Returns:
+			0 on successful submission (or 0 for local job launch).
+
+		Raises:
+			LSFError: If the bsub command returns a non-zero exit code.
+		"""
 		if self.submit_flag == True:
 			print("Job already submitted", file=sys.stderr)
 			return 0# what do you return here?
@@ -205,6 +271,12 @@ class LSFJob(object):
 				raise LSFError("Problem with bjobs polling. Error %s" % tmp_err)
 
 	def getJobId(self):
+		"""Parses the LSF job ID from the bsub submission output.
+
+		Extracts the integer job ID from the '<JOBID>' pattern in
+		self.submit_status and stores it in self.jobID.  Prints a message to
+		stdout if the job has not been submitted yet.
+		"""
 		if self.submit_flag:
 			jobID_search = re.search(r"\<[0-9]+\>",self.submit_status)
 			self.jobID = int(jobID_search.group().strip("><"))
@@ -214,6 +286,12 @@ class LSFJob(object):
 			return
 
 	def kill(self):
+		"""Kills the LSF job using bkill.
+
+		Does nothing if the job has not been submitted or has no valid job ID.
+		Loops until bkill returns 0, retrying if necessary.  On success, resets
+		status to 'NOT SUBMITTED' and clears submit_flag and complete.
+		"""
 		#Added this to fix cases were kill fails because there is no job id
 		if self.status in ['NOT SUBMITTED'] or self.jobID== -999 :
 			self.status = 'NOT SUBMITTED'
@@ -231,6 +309,13 @@ class LSFJob(object):
 		return
 
 	def wait(self):
+		"""Blocks until the LSF job reaches a terminal state.
+
+		Polls the job status every 30 seconds until status is no longer
+		'SUBMITTED', 'PEND', 'RUN', or 'SUSP'.  Prints a warning to stderr
+		if the job is suspended.  Sets status to 'DONE' and complete to True
+		on exit.
+		"""
 		self.poll()
 		if not self.submit_flag:
 			print("Job not yet submitted")
@@ -249,6 +334,18 @@ class LSFJob(object):
 #Helper functions
 ##############
 def tmp_name(prefix):
+	"""Generates a unique temporary file path inside a local 'tmp/' directory.
+
+	Creates the 'tmp/' directory in the current working directory if it does
+	not already exist, then returns a path of the form
+	'tmp/<prefix><random_suffix>'.
+
+	Args:
+		prefix: String prefix for the temporary file name.
+
+	Returns:
+		A string file path for a temporary file that does not yet exist.
+	"""
 	import tempfile
 	tmp_root = "tmp/"
 	if os.path.exists(tmp_root):

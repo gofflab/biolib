@@ -1,20 +1,34 @@
-'''
-Created on Jul 13, 2010
+"""Plotting utilities for genomic and epigenomic data visualisation.
 
-@author: lgoff
-'''
+Provides helper functions for generating publication-quality plots of
+chromatin mark occupancy and other aggregate genomic features using R via
+Rscript.
+"""
 import os
 
 
 def chromatinAggPlots(basename):
-    """
-    Makes chromatin aggregate plots
-    
-    requires:
-        basename.vec
-        basename.row
-        basename.col
-        
+    """Generates chromatin aggregate plots as a multi-panel PDF using R.
+
+    Writes an R script that reads three data files produced by an upstream
+    pipeline step, then calls Rscript to execute it and produce a PDF of
+    aggregate chromatin mark occupancy profiles centred on smRNA predictions.
+
+    Required input files (all derived from basename):
+        - basename.vec: Tab-delimited matrix of signal values.
+        - basename.row: Tab-delimited BED-like annotation of rows.
+        - basename.col: Tab-delimited column name file.
+
+    Output:
+        - basename.pdf: Multi-panel PDF with one line plot per chromatin mark.
+        - basename.q: The R script used to generate the plot (retained).
+
+    Args:
+        basename: Base path/name shared by all input files and used for the
+            output PDF and R script.
+
+    Returns:
+        The return code of the Rscript invocation (0 on success).
     """
     myScript = """
 colNames<-read.table("%s.col",colClasses="character",header=F,sep="\\t")

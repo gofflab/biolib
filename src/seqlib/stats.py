@@ -1,3 +1,11 @@
+"""Statistical and mathematical utilities for biological data analysis.
+
+Provides descriptive statistics, probability distributions (PDF and CDF),
+random variates, regression, sliding-window operations, curve fitting, and
+special mathematical functions.  Functions that require external tools (rpy2,
+gnuplot) fall back gracefully or raise ``NotImplementedError`` when those
+dependencies are absent.
+"""
 # python libs
 import cmath
 import os
@@ -16,11 +24,35 @@ from . import algorithms
 
 
 def prod(lst):
-    """Computes the product of a list of numbers"""
+    """Compute the product of a list of positive numbers via log-space summation.
+
+    Calculates ``exp(sum(log(i) for i in lst))``, which avoids numerical
+    overflow for large lists by working in log space.  All values in
+    ``lst`` must be strictly positive.
+
+    Args:
+        lst: An iterable of strictly positive numbers.
+
+    Returns:
+        The product of all elements in ``lst`` as a float.
+    """
     return exp(sum(log(i) for i in lst))
 
 def mean(vals):
-    """Computes the mean of a list of numbers"""
+    """Compute the arithmetic mean of a sequence of numbers.
+
+    Iterates through ``vals`` once, accumulating the sum and count,
+    then divides to produce the mean.
+
+    Args:
+        vals: An iterable of numeric values.  Must be non-empty.
+
+    Returns:
+        The arithmetic mean as a float.
+
+    Raises:
+        ZeroDivisionError: If ``vals`` is empty.
+    """
     n = 0
     s = 0.0
     for i in vals:
@@ -29,7 +61,17 @@ def mean(vals):
     return s / float(n)
 
 def median(vals):
-    """Computes the median of a list of numbers"""
+    """Compute the median of a list of numbers.
+
+    Sorts ``vals`` and returns the middle value for odd-length lists, or
+    the average of the two middle values for even-length lists.
+
+    Args:
+        vals: A sequence of numeric values.  Must be non-empty.
+
+    Returns:
+        The median value as a float.
+    """
     lenvals = len(vals)
     sortvals = sorted(vals)
 
@@ -39,7 +81,20 @@ def median(vals):
         return sortvals[lenvals // 2]
 
 def mode(vals):
-    """Computes the mode of a list of numbers"""
+    """Compute the mode (most frequently occurring value) of a sequence.
+
+    Uses :class:`collections.Counter` to count occurrences and returns
+    the value with the highest count.  If multiple values share the
+    maximum count, the one encountered first during dict iteration is
+    returned (which is insertion order in Python 3.7+).
+
+    Args:
+        vals: An iterable of hashable values.
+
+    Returns:
+        The most frequently occurring element in ``vals``, or ``None``
+        if ``vals`` is empty.
+    """
     top = 0
     topkey = None
     for key, val in Counter(vals).items():
@@ -50,8 +105,22 @@ def mode(vals):
 
 
 def msqerr(vals1, vals2):
-    """Mean squared error"""
+    """Compute the mean squared error between two equal-length sequences.
 
+    Calculates the average of the squared element-wise differences::
+
+        MSE = mean((vals1[i] - vals2[i])^2  for all i)
+
+    Args:
+        vals1: A sequence of numeric values.
+        vals2: A sequence of numeric values of the same length as ``vals1``.
+
+    Returns:
+        The mean squared error as a float.
+
+    Raises:
+        AssertionError: If ``vals1`` and ``vals2`` have different lengths.
+    """
     assert len(vals1) == len(vals2), "lists are not the same length"
 
 
@@ -61,23 +130,80 @@ def msqerr(vals1, vals2):
 
 
 def variance(vals):
-    """Variance"""
+    """Compute the sample variance of a sequence of numbers.
+
+    Uses Bessel's correction (divides by ``n - 1``) to produce an
+    unbiased estimate of the population variance::
+
+        s^2 = sum((x - mean)^2) / (n - 1)
+
+    Args:
+        vals: A sequence of at least two numeric values.
+
+    Returns:
+        The sample variance as a float.
+
+    Raises:
+        ZeroDivisionError: If ``vals`` has fewer than 2 elements.
+    """
     u = mean(vals)
     return sum((x - u)**2 for x in vals) / float(len(vals)-1)
 
 def var(vals):
+    """Alias for :func:`variance`.
+
+    Args:
+        vals: A sequence of at least two numeric values.
+
+    Returns:
+        The sample variance as a float.
+    """
     return variance(vals)
 
 def sdev(vals):
-    """Standard deviation"""
+    """Compute the sample standard deviation of a sequence of numbers.
+
+    Returns the square root of the sample variance computed by
+    :func:`variance` (Bessel-corrected, ``n - 1`` denominator).
+
+    Args:
+        vals: A sequence of at least two numeric values.
+
+    Returns:
+        The sample standard deviation as a float.
+    """
     return sqrt(variance(vals))
 
 def serror(vals):
-    """Stanadrd error"""
+    """Compute the standard error of the mean of a sequence of numbers.
+
+    Divides the sample standard deviation by the square root of the
+    sample size::
+
+        SE = sdev(vals) / sqrt(n)
+
+    Args:
+        vals: A sequence of at least two numeric values.
+
+    Returns:
+        The standard error of the mean as a float.
+    """
     return sdev(vals) / sqrt(len(vals))
 
 def covariance(lst1, lst2):
-    """Covariance"""
+    """Compute the sample covariance between two equal-length sequences.
+
+    Uses Bessel's correction (divides by ``n - 1``)::
+
+        cov(X, Y) = sum((x - mean_x) * (y - mean_y)) / (n - 1)
+
+    Args:
+        lst1: A sequence of numeric values.
+        lst2: A sequence of numeric values of the same length as ``lst1``.
+
+    Returns:
+        The sample covariance as a float.
+    """
     m1 = mean(lst1)
     m2 = mean(lst2)
     tot = 0.0
@@ -87,14 +213,37 @@ def covariance(lst1, lst2):
 
 
 def covmatrix(mat):
-    """Covariance Matrix"""
+    """Compute the full pairwise sample covariance matrix for a list of sequences.
+
+    Evaluates :func:`covariance` for every pair ``(i, j)`` of rows in
+    ``mat`` (including self-covariances on the diagonal, which equal the
+    sample variance of that row).
+
+    Args:
+        mat: A list of ``n`` equal-length numeric sequences (rows).
+
+    Returns:
+        A ``(n, n)`` NumPy array where element ``[i, j]`` is the sample
+        covariance between ``mat[i]`` and ``mat[j]``.
+    """
     size = len(mat)
 
     flat = [covariance(mat[i], mat[j]) for i,j in ((i,j) for i in range(size) for j in range(size))]
     return np.array(flat).reshape(size, size)
 
 def corrmatrix(mat):
-    """Correlation Matrix"""
+    """Compute the full pairwise Pearson correlation matrix for a list of sequences.
+
+    Evaluates :func:`corr` for every pair ``(i, j)`` of rows in
+    ``mat`` (including self-correlations of 1.0 on the diagonal).
+
+    Args:
+        mat: A list of ``n`` equal-length numeric sequences (rows).
+
+    Returns:
+        A ``(n, n)`` NumPy array where element ``[i, j]`` is the Pearson
+        correlation coefficient between ``mat[i]`` and ``mat[j]``.
+    """
     size = len(mat)
 
     flat = [corr(mat[i], mat[j]) for i,j in ((i,j) for i in range(size) for j in range(size))]
@@ -102,7 +251,23 @@ def corrmatrix(mat):
 
 
 def corr(lst1, lst2):
-    """Pearson's Correlation"""
+    """Compute the Pearson correlation coefficient between two sequences.
+
+    Calculates::
+
+        r = cov(lst1, lst2) / (sdev(lst1) * sdev(lst2))
+
+    If the denominator is zero (one or both sequences have zero variance),
+    returns ``1e1000`` (effectively infinity) as a sentinel value.
+
+    Args:
+        lst1: A sequence of numeric values.
+        lst2: A sequence of numeric values of the same length as ``lst1``.
+
+    Returns:
+        The Pearson correlation coefficient as a float in [-1, 1], or
+        ``1e1000`` if either sequence has zero standard deviation.
+    """
     num = covariance(lst1, lst2)
     denom = float(sdev(lst1) * sdev(lst2))
     if denom != 0:
@@ -112,8 +277,26 @@ def corr(lst1, lst2):
 
 
 def qqnorm(data, plot=None):
-    """Quantile-quantile plot"""
+    """Generate data for a normal quantile-quantile (Q-Q) plot.
 
+    Sorts ``data`` and generates an equal-length sample from the standard
+    normal distribution (mean 0, sigma 1), also sorted.  The two sorted
+    sequences can be plotted against each other to assess normality.
+
+    Args:
+        data: A sequence of numeric values to compare against the normal
+            distribution.
+        plot: An optional plot object with a ``plot(x, y)`` method.  If
+            provided, the Q-Q data are passed to ``plot.plot`` and the
+            plot object is returned.  Defaults to ``None``.
+
+    Returns:
+        If ``plot`` is ``None``: a 2-tuple ``(data2, norm)`` where
+        ``data2`` is the sorted input data and ``norm`` is a sorted
+        sample from N(0, 1) of the same length.
+        If ``plot`` is provided: the ``plot`` object after calling
+        ``plot.plot(data2, norm)``.
+    """
     data2 = sorted(data)
     norm = [random.normalvariate(0, 1) for x in range(len(data2))]
     norm.sort()
@@ -128,8 +311,25 @@ def qqnorm(data, plot=None):
 
 
 def fitLine(xlist, ylist):
-    """2D regression"""
+    """Fit a least-squares line to 2-D data and return slope and intercept.
 
+    Uses the ordinary least-squares closed-form formula::
+
+        slope = (sum(x*y) - n*mean_x*mean_y) / (sum(x^2) - n*mean_x^2)
+        inter = mean_y - slope * mean_x
+
+    If the denominator is zero (all x values are identical), slope is set
+    to ``1e10`` as a sentinel for a vertical line.
+
+    Args:
+        xlist: A sequence of x-coordinates (numeric).
+        ylist: A sequence of y-coordinates (numeric) of the same length
+            as ``xlist``.
+
+    Returns:
+        A 2-tuple ``(slope, inter)`` where ``slope`` is the gradient and
+        ``inter`` is the y-intercept of the fitted line.
+    """
     xysum = 0
     xxsum = 0
     n = len(xlist)
@@ -150,7 +350,23 @@ def fitLine(xlist, ylist):
 
 
 def fitLineError(xlist, ylist, slope, inter):
-    """Returns the Mean Square Error of the data fit"""
+    """Compute the mean squared error of a linear fit against data.
+
+    Evaluates the fitted line ``y_hat = slope * x + inter`` at each x
+    and averages the squared residuals::
+
+        MSE = sum((slope*x_i + inter - y_i)^2) / n
+
+    Args:
+        xlist: A sequence of x-coordinates (numeric).
+        ylist: A sequence of observed y-coordinates of the same length
+            as ``xlist``.
+        slope: The slope of the fitted line.
+        inter: The y-intercept of the fitted line.
+
+    Returns:
+        The mean squared error of the linear fit as a float.
+    """
     error = 0
     n = len(xlist)
 
@@ -160,8 +376,27 @@ def fitLineError(xlist, ylist, slope, inter):
 
 
 def pearsonsRegression(observed, expected):
-    """Pearson's coefficient of regression"""
+    """Compute the Pearson coefficient of determination (R^2).
 
+    Measures how well ``expected`` values explain the variance of
+    ``observed``::
+
+        R^2 = 1 - ESS / TSS
+
+    where ``ESS = sum((observed - expected)^2)`` is the error sum of
+    squares and ``TSS = sum((observed - mean(observed))^2)`` is the
+    total sum of squares.
+
+    Args:
+        observed: A sequence of observed (actual) numeric values.
+        expected: A sequence of predicted values of the same length as
+            ``observed``.
+
+    Returns:
+        R^2 as a float.  A value of 1.0 indicates a perfect fit;
+        values near 0 indicate no explanatory power; negative values
+        indicate the model is worse than predicting the mean.
+    """
     # error sum of squares
     ess = sum((a - b)**2 for a, b in zip(observed, expected))
 
@@ -174,6 +409,22 @@ def pearsonsRegression(observed, expected):
 
 
 def pearsonsRegressionLine(x, y, m, b):
+    """Compute R^2 for data against a linear model y = m*x + b.
+
+    Generates expected values from the line ``y = m*x + b`` and
+    delegates to :func:`pearsonsRegression`.
+
+    Args:
+        x: A sequence of x-coordinates (numeric).
+        y: A sequence of observed y-coordinates of the same length as
+            ``x``.
+        m: The slope of the reference line.
+        b: The y-intercept of the reference line.
+
+    Returns:
+        R^2 as a float indicating goodness of fit of the linear model
+        to the observed data.
+    """
     observed = y
     expected = [m*i + b for i in x]
     return pearsonsRegression(observed, expected)
@@ -181,11 +432,27 @@ def pearsonsRegressionLine(x, y, m, b):
 
 
 def percentile(vals, perc, rounding=-1, sort=True):
-    """Give the value at a percentile
+    """Return the value at a given percentile of a sequence.
 
-       rounding -- round down if -1 or round up for 1
+    Optionally sorts ``vals`` and returns the element at index
+    ``int(perc * n)`` (round down) or ``ceil(perc * n)`` (round up),
+    clamped to valid list indices.
+
+    Args:
+        vals: A sequence of numeric values.
+        perc: The desired percentile as a fraction in [0, 1] (e.g. 0.5
+            for the median, 0.95 for the 95th percentile).
+        rounding: Controls how the fractional index is resolved.
+            Use ``-1`` to floor (default) or ``1`` to ceiling.
+        sort: If ``True`` (default), sort ``vals`` before indexing.
+            Pass ``False`` if ``vals`` is already sorted to save time.
+
+    Returns:
+        The value in ``vals`` at the requested percentile.
+
+    Raises:
+        Exception: If ``rounding`` is not ``-1`` or ``1``.
     """
-
     if sort:
         vals2 = sorted(vals)
     else:
@@ -200,8 +467,22 @@ def percentile(vals, perc, rounding=-1, sort=True):
 
 
 def logadd(lna, lnb):
-    """Adding numbers in log-space"""
+    """Add two numbers represented in log space without underflow.
 
+    Computes ``log(exp(lna) + exp(lnb))`` in a numerically stable way::
+
+        logadd(lna, lnb) = log(exp(lna - lnb) + 1) + lnb
+
+    When ``lna - lnb >= 500`` the second term is negligible and ``lna``
+    is returned directly to avoid overflow.
+
+    Args:
+        lna: The natural log of the first value.
+        lnb: The natural log of the second value.
+
+    Returns:
+        The natural log of the sum ``exp(lna) + exp(lnb)`` as a float.
+    """
     diff = lna - lnb
     if diff < 500:
         return log(exp(diff) + 1.0) + lnb
@@ -211,13 +492,25 @@ def logadd(lna, lnb):
 
 
 def smooth(vals, radius):
-    """
-    return an averaging of vals using a radius
+    """Smooth a sequence by replacing each value with a local window average.
 
-    Note: not implemented as fast as possible
-    runtime: O(len(vals) * radius)
-    """
+    For each position ``i``, computes the mean of the sub-list
+    ``vals[i - r : i + r + 1]`` where ``r = min(i, vlen - i - 1, radius)``
+    ensures the window stays within array bounds.  Values near the
+    edges therefore use a smaller effective radius.
 
+    Note:
+        Not implemented as fast as possible.
+        Runtime is O(len(vals) * radius).
+
+    Args:
+        vals: A sequence of numeric values.
+        radius: The maximum half-width of the averaging window (the
+            window spans at most ``2*radius + 1`` elements).
+
+    Returns:
+        A list of smoothed values of the same length as ``vals``.
+    """
     vals2 = []
     vlen = len(vals)
 
@@ -231,12 +524,27 @@ def smooth(vals, radius):
 
 
 def iter_window_index(x, xdist, esp=None):
-    """
-    iterates a sliding window over x with radius xradius
+    """Iterate sliding-window index ranges over a sorted value sequence.
 
-    returns an iterator over list of indices in x that represent windows
+    Advances a window of fixed width ``xdist`` along the value axis of
+    a sorted sequence ``x``, yielding the array-index bounds and value
+    bounds of the window each time a point enters or exits it.
 
-    x must be sorted least to greatest
+    The window boundaries are updated one step at a time: the lower
+    bound advances whenever the leading point would be expelled, and the
+    upper bound advances to admit the next point.
+
+    Args:
+        x: A sorted (ascending) list of numeric values.
+        xdist: The width of the sliding window in the same units as
+            values in ``x``.
+        esp: Unused parameter retained for API compatibility.
+
+    Yields:
+        4-tuples ``(lowi, highi, low, high)`` where ``lowi`` and
+        ``highi`` are the inclusive index bounds of the current window
+        in ``x``, and ``low`` / ``high`` are the corresponding value
+        boundaries.
     """
 
     vlen = len(x)
@@ -294,7 +602,25 @@ def iter_window_index(x, xdist, esp=None):
 
 
 def iter_window_index_step(x, size, step, minsize=0):
+    """Iterate fixed-step sliding-window index ranges over a sorted value sequence.
 
+    Advances a window of fixed width ``size`` in increments of ``step``
+    along the value axis, yielding index and value bounds for each
+    window position that contains at least ``minsize`` points.
+
+    Args:
+        x: A sorted (ascending) list of numeric values.
+        size: The width of each window in the same units as ``x``.
+        step: The distance to advance the window centre between successive
+            yields.
+        minsize: Minimum number of points that must be inside the window
+            for it to be yielded.  Defaults to 0.
+
+    Yields:
+        4-tuples ``(lowi, highi, low, high)`` where ``lowi`` and
+        ``highi`` are the inclusive index bounds of the current window
+        in ``x``, and ``low`` / ``high`` are the value boundaries.
+    """
     vlen = len(x)
     start = x[0]
     end = x[-1]
@@ -328,32 +654,73 @@ def iter_window_index_step(x, size, step, minsize=0):
 
 
 def iter_window(x, xdist, func=lambda win: win, minsize=0):
-    """
-    iterates a sliding window over x with radius xradius
+    """Apply a function to each sliding window over a sorted sequence.
 
-    x must be sorted least to greatest
-    """
+    Wraps :func:`iter_window_index` and yields the window midpoint
+    together with ``func`` applied to the window slice.
 
+    Note:
+        The internal call uses ``xsize`` rather than ``xdist``; this is
+        a latent bug in the original code and is preserved here.
+
+    Args:
+        x: A sorted (ascending) list of numeric values.
+        xdist: The width of the sliding window.
+        func: A callable applied to each window slice ``x[lowi:highi]``.
+            Defaults to the identity function.
+        minsize: Minimum number of points in the window before it is
+            yielded.  Defaults to 0.
+
+    Yields:
+        2-tuples ``(midpoint, func(window))`` where ``midpoint`` is
+        ``(low + high) / 2`` and ``window`` is the slice of ``x``
+        within the current bounds.
+    """
     for lowi, highi, low, high in iter_window_index(x, xsize):
         if highi - lowi >= minsize:
             yield (high + low)/2.0, func(x[lowi:highi])
 
 
 def iter_window_step(x, width, step, func=lambda win: win, minsize=0):
+    """Apply a function to each fixed-step sliding window over a sorted sequence.
+
+    Wraps :func:`iter_window_index_step` and yields the window midpoint
+    together with ``func`` applied to the window slice.  ``x`` must be
+    sorted in ascending order.
+
+    Args:
+        x: A sorted (ascending) list of numeric values.
+        width: The width of each window in the same units as ``x``.
+        step: The distance to advance the window between successive yields.
+        func: A callable applied to each window slice ``x[lowi:highi]``.
+            Defaults to the identity function.
+        minsize: Minimum number of points that must be in the window for
+            it to be yielded.  Defaults to 0.
+
+    Yields:
+        2-tuples ``(midpoint, func(window))`` where ``midpoint`` is
+        ``(low + high) / 2.0`` and ``window`` is the slice of ``x``
+        within the current bounds.
     """
-    iterates a sliding window over x with width 'width'
-
-    x must be sorted least to greatest
-
-    return an iterator with (midx, func(x[lowi:highi]))
-    """
-
     for lowi, highi, low, high in iter_window_index_step(x, width, step, minsize):
         yield (high + low) / 2.0, func(x[lowi:highi])
 
 
 def _sortTogether(x, y):
-    """Sort x and y together by x values."""
+    """Sort two sequences together by the values of ``x``.
+
+    Zips ``x`` and ``y`` into pairs, sorts by the first element of each
+    pair, then unzips back into two separate lists.
+
+    Args:
+        x: A sequence of sortable values used as the sort key.
+        y: A sequence of values of the same length as ``x``.
+
+    Returns:
+        A 2-tuple ``(x2, y2)`` where both lists have been reordered so
+        that ``x2`` is sorted ascending.  Returns ``([], [])`` if ``x``
+        is empty.
+    """
     if not x:
         return [], []
     pairs = sorted(zip(x, y))
@@ -362,10 +729,28 @@ def _sortTogether(x, y):
 
 
 def smooth2(x, y, xradius, minsize=0, sort=False):
-    """
-    return an averaging of x and y using xradius
+    """Smooth paired (x, y) data by averaging within a sliding x-radius window.
 
-    x must be sorted least to greatest
+    For each point ``x[i]``, the window spans all points whose x-value
+    lies within ``[x[i] - r, x[i] + r]`` where
+    ``r = min(x[i] - min(x), max(x) - x[i], xradius)`` so that the
+    effective radius shrinks near the data boundaries.
+
+    Args:
+        x: A sorted (ascending) list of x-coordinates.  Must be
+            non-empty and of the same length as ``y``.
+        y: A list of y-values corresponding to ``x``.
+        xradius: The maximum half-width of the averaging window in
+            the same units as ``x``.
+        minsize: Minimum number of points that must be in the window
+            for the averaged point to be included in the output.
+            Defaults to 0.
+        sort: If ``True``, sort ``x`` and ``y`` together by ``x`` before
+            smoothing.  Defaults to ``False``.
+
+    Returns:
+        A 2-tuple ``(x2, y2)`` of lists containing the smoothed x and y
+        values.  Returns ``([], [])`` if ``x`` is empty.
     """
 
     vlen = len(x)
@@ -413,8 +798,23 @@ def smooth2(x, y, xradius, minsize=0, sort=False):
 
 
 def factorial(x, k=1):
-    """Simple implementation of factorial"""
+    """Compute the partial factorial product x! / k!.
 
+    Calculates the product of all integers from ``k+1`` to ``x``
+    inclusive.  When ``k=1`` (the default) this is the standard
+    factorial ``x!``.  When ``k > 1`` it returns the falling factorial
+    ``x! / k!``.
+
+    Args:
+        x: The upper bound of the product (inclusive).  Converted to
+            ``int`` internally.
+        k: The lower bound; the product starts at ``k+1``.  Defaults
+            to 1.
+
+    Returns:
+        An integer equal to ``(k+1) * (k+2) * ... * x``, or 1 if the
+        range is empty (i.e. ``x <= k``).
+    """
     n = 1
     for i in range(int(k)+1, int(x)+1):
         n *= i
@@ -422,8 +822,22 @@ def factorial(x, k=1):
 
 
 def logfactorial(x, k=1):
-    """returns the log(factorial(x) / factorial(k)"""
+    """Compute log(x! / k!) in log space.
 
+    Returns the natural log of the partial factorial product
+    ``(k+1) * (k+2) * ... * x`` by summing ``log(i)`` terms.  This
+    avoids integer overflow for large ``x``.
+
+    Args:
+        x: The upper bound of the product (inclusive).  Converted to
+            ``int`` internally.
+        k: The lower bound; the product starts at ``k+1``.  Defaults
+            to 1.
+
+    Returns:
+        A float equal to ``log((k+1)) + log(k+2) + ... + log(x)``,
+        or 0.0 if the range is empty.
+    """
     n = 0
     for i in range(int(k)+1, int(x)+1):
         n += log(i)
@@ -431,6 +845,20 @@ def logfactorial(x, k=1):
 
 
 def choose(n, k):
+    """Compute the binomial coefficient C(n, k) = n! / (k! * (n-k)!).
+
+    Uses a multiplicative formula for efficiency, exploiting the
+    symmetry ``C(n, k) == C(n, n-k)`` to minimise the number of
+    multiplications.  Returns the result rounded to the nearest integer.
+
+    Args:
+        n: The total number of items.
+        k: The number of items to choose.
+
+    Returns:
+        An integer equal to C(n, k).  Returns 1.0 when both ``n`` and
+        ``k`` are 0, and 0 when any argument is negative or ``k > n``.
+    """
     if n == 0 and k == 0:
         return 1.0
 
@@ -449,19 +877,44 @@ def choose(n, k):
 
 
 def _oneNorm(weights):
-    """Normalize a list of weights to sum to 1."""
+    """Normalise a list of weights so they sum to 1.
+
+    Divides each weight by the total sum of all weights.
+
+    Args:
+        weights: A list of non-negative numeric values whose sum is
+            positive.
+
+    Returns:
+        A new list of floats of the same length as ``weights`` that
+        sum to 1.0.
+    """
     s = sum(weights)
     return [w / s for w in weights]
 
 
 def sample(weights):
-    """
-    Randomly choose an int between 0 and len(probs)-1 using
-    the weights stored in list probs.
+    """Randomly choose an index proportional to the given weights.
 
-    item i will be chosen with probability weights[i]/sum(weights)
-    """
+    Normalises ``weights`` to a proper probability distribution and then
+    samples using a CDF built from the normalised weights and a binary
+    search via :func:`algorithms.binsearch`.
 
+    Item ``i`` is chosen with probability ``weights[i] / sum(weights)``.
+
+    Args:
+        weights: A list of non-negative numeric values.  The length
+            determines the range of possible return values (0 to
+            ``len(weights) - 1``).
+
+    Returns:
+        An integer index into ``weights``, selected with probability
+        proportional to each weight.
+
+    Raises:
+        AssertionError: If ``algorithms.binsearch`` returns ``None`` for
+            the lower bound, indicating an unexpected state.
+    """
     probs = _oneNorm(weights)
 
     cdf = [0]
@@ -478,12 +931,31 @@ def sample(weights):
 
 
 def chyper(m, n, M, N, report=0):
-    '''
-    calculates cumulative probability based on
-    hypergeometric distribution
-    over/under/both (report = 0/1/2)
-    (uses /seq/compbio02/software-Linux/misc/chyper)
-    '''
+    """Compute a hypergeometric cumulative probability via an external ``chyper`` binary.
+
+    Models drawing ``n`` balls from an urn containing ``N`` balls of which
+    ``M`` are white (successes).  ``m`` is the number of white balls drawn.
+    Calls the external command-line tool ``chyper`` and parses its output.
+
+    Args:
+        m: Number of white balls drawn (observed successes).  Must be
+            an ``int`` with ``m <= n`` and ``m <= M``.
+        n: Total balls drawn.  Must be an ``int`` with ``n <= N``.
+        M: Total white balls in urn.  Must be an ``int``.
+        N: Total balls in urn.  Must be an ``int``.
+        report: Controls which tail(s) are returned.
+            ``0`` — p-value for over-representation (default).
+            ``1`` — p-value for under-representation.
+            ``2`` — 2-tuple ``(over_p, under_p)``.
+
+    Returns:
+        A float p-value, or a list of two floats when ``report=2``.
+
+    Raises:
+        AssertionError: If arguments do not satisfy type or range constraints.
+        Exception: If the ``chyper`` command produces no output.
+        Exception: If ``report`` is not 0, 1, or 2.
+    """
 
     assert( (type(m) == type(n) == type(M) == type(N) == int)
             and m <= n and m <= M and n <= N)
@@ -511,18 +983,31 @@ def chyper(m, n, M, N, report=0):
 
 
 def rhyper(m, n, M, N, report=0):
-    '''
-    calculates cumulative probability based on
-    hypergeometric distribution
-    over/under/both (report = 0/1/2)
-    (uses R through RPy2)
+    """Compute a hypergeometric cumulative probability via R (rpy2).
 
-    N = total balls in urn
-    M = total white balls in urn
-    n = drawn balls from urn
-    m = drawn white balls from urn
+    Models drawing ``n`` balls from an urn containing ``N`` balls of which
+    ``M`` are white (successes).  ``m`` is the number of white balls drawn.
+    Uses R's ``phyper`` function via the rpy2 interface.
 
-    '''
+    Args:
+        m: Number of white balls drawn (observed successes).  Must be
+            an ``int`` with ``m <= n`` and ``m <= M``.
+        n: Total balls drawn.  Must be an ``int`` with ``n <= N``.
+        M: Total white balls in urn.  Must be an ``int``.
+        N: Total balls in urn.  Must be an ``int``.
+        report: Controls which tail(s) are returned.
+            ``0`` — p-value for over-representation, i.e.
+            ``P(X >= m)`` (default).
+            ``1`` — p-value for under-representation, i.e. ``P(X <= m)``.
+            ``2`` — 2-tuple ``(over_p, under_p)``.
+
+    Returns:
+        A float p-value, or a 2-tuple of floats when ``report=2``.
+
+    Raises:
+        AssertionError: If arguments do not satisfy type or range constraints.
+        Exception: If ``report`` is not 0, 1, or 2.
+    """
 
     import rpy2.robjects as r_module
     r = r_module.r
@@ -543,8 +1028,19 @@ def rhyper(m, n, M, N, report=0):
         raise Exception("unknown option")
 
 def cdf(vals):
-    """Computes the CDF of a list of values"""
+    """Compute the empirical cumulative distribution function (ECDF) of a list.
 
+    Sorts ``vals`` and assigns each unique value a cumulative probability
+    equal to its 0-based rank divided by the total number of values.
+
+    Args:
+        vals: A sequence of numeric values.
+
+    Returns:
+        A 2-tuple ``(x, y)`` where ``x`` is the sorted list of values and
+        ``y`` is the corresponding list of cumulative probabilities in
+        [0, 1).
+    """
     vals = sorted(vals)
     tot = float(len(vals))
     x = []
@@ -558,8 +1054,31 @@ def cdf(vals):
 
 
 def enrichItems(in_items, out_items, M=None, N=None, useq=True, extra=False):
-    """Calculates enrichment for items within an in-set vs and out-set.
-       Returns a sorted DataFrame.
+    """Calculate item enrichment between an in-set and an out-set.
+
+    Counts how often each item appears in ``in_items`` vs ``out_items`` and
+    tests for enrichment using the hypergeometric distribution via
+    :func:`rhyper`.  Optionally adjusts p-values to q-values (FDR) and
+    adds fold-enrichment columns.
+
+    Args:
+        in_items: An iterable of items in the foreground (in-set).
+        out_items: An iterable of items in the background (out-set).
+        M: The foreground population size.  Defaults to
+            ``len(in_items)``.
+        N: The total population size.  Defaults to
+            ``len(in_items) + len(out_items)``.
+        useq: If ``True`` (default), add ``qval`` and ``qval_under``
+            columns computed via FDR correction using :func:`qvalues`.
+        extra: If ``True``, add columns ``in_size``, ``out_size``,
+            ``item_ratio``, ``size_ratio``, and ``fold`` for fold-
+            enrichment analysis.  Defaults to ``False``.
+
+    Returns:
+        A :class:`pandas.DataFrame` sorted by ``pval`` (ascending) with
+        columns ``item``, ``in_count``, ``out_count``, ``pval``,
+        ``pval_under``, and optionally ``qval``, ``qval_under``, and
+        fold-enrichment columns.
     """
 
     # count items using defaultdict instead of rasmus util.Dict
@@ -607,11 +1126,34 @@ def enrichItems(in_items, out_items, M=None, N=None, useq=True, extra=False):
 
 
 def qvalues(pvals):
+    """Compute Benjamini-Hochberg FDR-adjusted p-values (q-values) via R.
+
+    Calls R's ``p.adjust`` function with ``method='fdr'`` through rpy2.
+
+    Args:
+        pvals: A list of raw p-values (floats in [0, 1]).
+
+    Returns:
+        A list of FDR-adjusted p-values (q-values) of the same length
+        as ``pvals``.
+    """
     import rpy2.robjects as robjects
     ret = robjects.r['p.adjust'](robjects.FloatVector(pvals), 'fdr')
     return list(ret)
 
 def qvalues2(pvals):
+    """Compute q-values using the Storey-Tibshirani method via R's qvalue package.
+
+    Loads the ``qvalue`` R package through rpy2 and calls ``qvalue()`` on
+    the provided p-values.
+
+    Args:
+        pvals: A list of raw p-values (floats in [0, 1]).
+
+    Returns:
+        A list of q-values of the same length as ``pvals`` as computed
+        by the Storey-Tibshirani estimator.
+    """
     import rpy2.robjects as robjects
     robjects.r['library']('qvalue')
     ret = robjects.r['qvalue'](robjects.FloatVector(pvals))
@@ -623,6 +1165,18 @@ def qvalues2(pvals):
 #
 
 def uniformPdf(x, params):
+    """Evaluate the Uniform(a, b) probability density function at ``x``.
+
+    Returns ``1 / (b - a)`` when ``a <= x <= b``, and 0 otherwise.
+
+    Args:
+        x: The point at which to evaluate the PDF.
+        params: A 2-tuple ``(a, b)`` defining the lower and upper bounds
+            of the uniform distribution.
+
+    Returns:
+        The PDF value at ``x`` as a float.
+    """
     a, b = params
     if x < a or x > b:
         return 0.0
@@ -631,37 +1185,137 @@ def uniformPdf(x, params):
 
 
 def binomialPdf(k, params):
+    """Evaluate the Binomial(n, p) probability mass function at ``k``.
+
+    Computes::
+
+        P(X = k) = C(n, k) * p^k * (1 - p)^(n - k)
+
+    Args:
+        k: The number of successes (non-negative integer).
+        params: A 2-tuple ``(p, n)`` where ``p`` is the success probability
+            per trial and ``n`` is the total number of trials.
+
+    Returns:
+        The probability of exactly ``k`` successes as a float.
+    """
     p, n = params
     return choose(n, k) * (p ** k) * ((1.0-p) ** (n - k))
 
 def gaussianPdf(x, params):
+    """Evaluate the standard Normal N(0, 1) probability density function at ``x``.
+
+    Computes::
+
+        f(x) = (1 / sqrt(2*pi)) * exp(-x^2 / 2)
+
+    Note:
+        The ``params`` argument is accepted but ignored; this function
+        always evaluates the standard normal (mean 0, variance 1).
+
+    Args:
+        x: The point at which to evaluate the PDF.
+        params: Unused.  Accepted for API consistency with other PDF
+            functions.
+
+    Returns:
+        The standard normal PDF value at ``x`` as a float.
+    """
     return 1/sqrt(2*pi) * exp(- x**2 / 2.0)
 
 def normalPdf(x, params):
+    """Evaluate the Normal(mu, sigma) probability density function at ``x``.
+
+    Computes::
+
+        f(x) = (1 / (sigma * sqrt(2*pi))) * exp(-(x - mu)^2 / (2*sigma^2))
+
+    Args:
+        x: The point at which to evaluate the PDF.
+        params: A 2-tuple ``(mu, sigma)`` — the mean and standard
+            deviation of the normal distribution.
+
+    Returns:
+        The normal PDF value at ``x`` as a float.
+    """
     mu, sigma = params
     return 1.0/(sigma * sqrt(2.0*pi)) * exp(- (x - mu)**2 / (2.0 * sigma**2))
 
 def normalCdf(x, params):
+    """Evaluate the Normal(mu, sigma) cumulative distribution function at ``x``.
+
+    Computes::
+
+        F(x) = (1 + erf((x - mu) / (sigma * sqrt(2)))) / 2
+
+    Args:
+        x: The point at which to evaluate the CDF.
+        params: A 2-tuple ``(mu, sigma)`` — the mean and standard
+            deviation of the normal distribution.
+
+    Returns:
+        The cumulative probability P(X <= x) as a float in [0, 1].
+    """
     mu, sigma = params
     return (1 + erf((x - mu)/(sigma * sqrt(2)))) / 2.0
 
 def logNormalPdf(x, params):
-    """mu and sigma are the mean and standard deviation of the
-       variable's logarithm"""
+    """Evaluate the log-normal probability density function at ``x``.
 
+    The log-normal distribution describes a variable whose natural
+    logarithm is normally distributed.  The PDF is::
+
+        f(x) = (1 / (x * sigma * sqrt(2*pi))) * exp(-(log(x) - mu)^2 / (2*sigma^2))
+
+    Args:
+        x: The point at which to evaluate the PDF.  Must be positive.
+        params: A 2-tuple ``(mu, sigma)`` — the mean and standard
+            deviation of the variable's natural logarithm.
+
+    Returns:
+        The log-normal PDF value at ``x`` as a float.  Returns nonsensical
+        values for ``x <= 0``.
+    """
     mu, sigma = params
     return 1/(x * sigma * sqrt(2*pi)) * \
            exp(- (log(x) - mu)**2 / (2.0 * sigma**2))
 
 def logNormalCdf(x, params):
-    """mu and sigma are the mean and standard deviation of the
-       variable's logarithm"""
+    """Evaluate the log-normal cumulative distribution function at ``x``.
 
+    Computes::
+
+        F(x) = (1 + erf((log(x) - mu) / (sigma * sqrt(2)))) / 2
+
+    Args:
+        x: The point at which to evaluate the CDF.  Must be positive.
+        params: A 2-tuple ``(mu, sigma)`` — the mean and standard
+            deviation of the variable's natural logarithm.
+
+    Returns:
+        The cumulative probability P(X <= x) as a float in [0, 1].
+    """
     mu, sigma = params
     return (1 + erf((log(x) - mu)/(sigma * sqrt(2)))) / 2.0
 
 
 def poissonPdf(x, params):
+    """Evaluate the Poisson probability mass function at ``x``.
+
+    Computes the probability in log space to avoid overflow::
+
+        P(X = x) = exp(-lambda) * lambda^x / x!
+                 = exp(-lambda + sum(log(lambda/i) for i in 1..x))
+
+    Args:
+        x: The number of events (non-negative integer).
+        params: A 1-tuple or list whose first element is ``lambda``
+            (the expected number of events, must be positive).
+
+    Returns:
+        The Poisson PMF value P(X = x) as a float.  Returns 0.0 if
+        ``x < 0`` or ``lambda <= 0``.
+    """
     lambd = params[0]
 
     if x < 0 or lambd <= 0:
@@ -674,7 +1328,26 @@ def poissonPdf(x, params):
 
 
 def poissonCdf(x, params):
-    """Cumulative distribution function of the Poisson distribution"""
+    """Evaluate the Poisson cumulative distribution function at ``x``.
+
+    Computes P(X <= x) using the regularised incomplete gamma function::
+
+        F(x; lambda) = (Gamma(floor(x+1)) - gammainc(floor(x+1), lambda))
+                       / floor(x)!
+
+    Note:
+        Not implemented accurately for large ``x`` or ``lambda``.
+
+    Args:
+        x: The upper bound (non-negative number; floor is taken
+            internally).
+        params: A 1-tuple or list whose first element is ``lambda``
+            (the expected number of events).
+
+    Returns:
+        The cumulative probability P(X <= x) as a float, or 0 if
+        ``x < 0``.
+    """
     # NOTE: not implemented accurately for large x or lambd
     lambd = params[0]
 
@@ -686,7 +1359,19 @@ def poissonCdf(x, params):
 
 
 def poissonvariate(lambd):
-    """Sample from a Poisson distribution"""
+    """Draw a random sample from a Poisson distribution.
+
+    Uses Knuth's algorithm: generate uniform random variables and
+    multiply them together until their product falls below
+    ``exp(-lambda)``.  The count of multiplications minus one is the
+    Poisson variate.
+
+    Args:
+        lambd: The expected number of events per interval (lambda > 0).
+
+    Returns:
+        A non-negative integer drawn from Poisson(lambda).
+    """
     l = exp(-lambd)
     k = 0
     p = 1.0
@@ -698,6 +1383,21 @@ def poissonvariate(lambd):
             return k - 1
 
 def exponentialPdf(x, params):
+    """Evaluate the Exponential(lambda) probability density function at ``x``.
+
+    Computes::
+
+        f(x; lambda) = lambda * exp(-lambda * x)   for x >= 0, lambda >= 0
+
+    Args:
+        x: The point at which to evaluate the PDF.
+        params: A 1-tuple or list whose first element is ``lambda``
+            (the rate parameter).
+
+    Returns:
+        The exponential PDF value at ``x`` as a float.  Returns 0.0 if
+        ``x < 0`` or ``lambda < 0``.
+    """
     lambd = params[0]
 
     if x < 0 or lambd < 0:
@@ -707,6 +1407,21 @@ def exponentialPdf(x, params):
 
 
 def exponentialCdf(x, params):
+    """Evaluate the Exponential(lambda) cumulative distribution function at ``x``.
+
+    Computes::
+
+        F(x; lambda) = 1 - exp(-lambda * x)   for x >= 0, lambda >= 0
+
+    Args:
+        x: The point at which to evaluate the CDF.
+        params: A 1-tuple or list whose first element is ``lambda``
+            (the rate parameter).
+
+    Returns:
+        The cumulative probability P(X <= x) as a float.  Returns 0.0 if
+        ``x < 0`` or ``lambda < 0``.
+    """
     lambd = params[0]
 
     if x < 0 or lambd < 0:
@@ -716,9 +1431,36 @@ def exponentialCdf(x, params):
 
 
 def exponentialvariate(lambd):
+    """Draw a random sample from an Exponential(lambda) distribution.
+
+    Uses the inverse CDF (quantile) method: if U ~ Uniform(0,1) then
+    ``-log(U) / lambda`` is Exponentially distributed with rate ``lambda``.
+
+    Args:
+        lambd: The rate parameter (lambda > 0).
+
+    Returns:
+        A non-negative float drawn from Exponential(lambda).
+    """
     return -log(random.random()) / lambd
 
 def gammaPdf(x, params):
+    """Evaluate the Gamma(alpha, beta) probability density function at ``x``.
+
+    Uses the rate (inverse-scale) parameterisation::
+
+        f(x; alpha, beta) = beta^alpha * x^(alpha-1) * exp(-beta*x)
+                            / Gamma(alpha)
+
+    Args:
+        x: The point at which to evaluate the PDF.  Must be positive.
+        params: A 2-tuple ``(alpha, beta)`` — the shape and rate
+            parameters.  Both must be positive.
+
+    Returns:
+        The gamma PDF value at ``x`` as a float.  Returns 0.0 if any of
+        ``x``, ``alpha``, or ``beta`` is non-positive.
+    """
     alpha, beta = params
     if x <= 0 or alpha <= 0 or beta <= 0:
         return 0.0
@@ -727,6 +1469,22 @@ def gammaPdf(x, params):
            gamma(alpha)
 
 def gammaPdf2(x, params):
+    """Evaluate the Gamma(alpha, beta) PDF at ``x`` using log-space arithmetic.
+
+    Numerically more stable than :func:`gammaPdf` for large parameter
+    values.  Computes the same distribution in log space::
+
+        log f = -x*beta + (alpha-1)*log(x) + alpha*log(beta) - gammaln(alpha)
+
+    Args:
+        x: The point at which to evaluate the PDF.  Must be positive.
+        params: A 2-tuple ``(alpha, beta)`` — the shape and rate
+            parameters (rate parameterisation).  Both must be positive.
+
+    Returns:
+        The gamma PDF value at ``x`` as a float.  Returns 0.0 if any of
+        ``x``, ``alpha``, or ``beta`` is non-positive.
+    """
     alpha, beta = params
     if x <= 0 or alpha <= 0 or beta <= 0:
         return 0.0
@@ -736,6 +1494,21 @@ def gammaPdf2(x, params):
 
 
 def gammaCdf(x, params):
+    """Evaluate the Gamma(alpha, beta) cumulative distribution function at ``x``.
+
+    Computes P(X <= x) using the lower incomplete gamma function::
+
+        F(x; alpha, beta) = gammainc(alpha, x*beta) / Gamma(alpha)
+
+    Args:
+        x: The point at which to evaluate the CDF.
+        params: A 2-tuple ``(alpha, beta)`` — the shape and rate
+            parameters (rate parameterisation).  Both must be positive.
+
+    Returns:
+        The cumulative probability P(X <= x) as a float.  Returns 0 if
+        ``x <= 0``.
+    """
     alpha, beta = params
     if x <= 0:
         return 0
@@ -744,10 +1517,27 @@ def gammaCdf(x, params):
 
 
 def betaPdf2(x, params):
-    """A simpler implementation of beta distribution but will overflow
-       for values of alpha and beta near 100
-    """
+    """Evaluate the Beta(alpha, beta) PDF at ``x`` using direct gamma computation.
 
+    Simpler but less numerically stable than :func:`betaPdf`; will
+    overflow for ``alpha`` or ``beta`` values near 100 because it
+    evaluates ``Gamma(alpha + beta)`` directly.
+
+    Formula::
+
+        f(x; alpha, beta) = Gamma(alpha+beta) / (Gamma(alpha)*Gamma(beta))
+                            * x^(alpha-1) * (1-x)^(beta-1)
+
+    Args:
+        x: The point at which to evaluate the PDF.  Must satisfy
+            ``0 < x < 1``.
+        params: A 2-tuple ``(alpha, beta)`` — the shape parameters, both
+            must be positive.
+
+    Returns:
+        The beta PDF value at ``x`` as a float.  Returns 0.0 if ``x``
+        is outside (0, 1) or if either shape parameter is non-positive.
+    """
     alpha, beta = params
     if 0 < x < 1 and alpha > 0 and beta > 0:
         return gamma(alpha + beta) / (gamma(alpha)*gamma(beta)) * \
@@ -756,6 +1546,24 @@ def betaPdf2(x, params):
         return 0.0
 
 def betaPdf(x, params):
+    """Evaluate the Beta(alpha, beta) PDF at ``x`` using log-gamma arithmetic.
+
+    Numerically stable implementation that avoids overflow by computing
+    the PDF in log space::
+
+        log f = gammaln(alpha+beta) - gammaln(alpha) - gammaln(beta)
+                + (alpha-1)*log(x) + (beta-1)*log(1-x)
+
+    Args:
+        x: The point at which to evaluate the PDF.  Must satisfy
+            ``0 < x < 1``.
+        params: A 2-tuple ``(alpha, beta)`` — the shape parameters, both
+            must be positive.
+
+    Returns:
+        The beta PDF value at ``x`` as a float.  Returns 0.0 if ``x``
+        is outside (0, 1) or if either shape parameter is non-positive.
+    """
     alpha, beta = params
 
     if 0 < x < 1 and alpha > 0 and beta > 0:
@@ -767,6 +1575,25 @@ def betaPdf(x, params):
 
 
 def betaPdf3(x, params):
+    """Evaluate the Beta(alpha, beta) PDF at ``x`` using a product formula.
+
+    Computes the PDF via a direct multiplicative recurrence with
+    integer-cast parameters.  Splits the product into two parts: a
+    symmetric core term up to ``min(alpha-1, beta-1)``, then an
+    asymmetric tail term up to ``max(alpha-1, beta-1)``.
+
+    Args:
+        x: The point at which to evaluate the PDF.  Must satisfy
+            ``0 < x < 1``.
+        params: A 2-tuple ``(alpha, beta)`` — the shape parameters.
+            Values are cast to ``int`` internally, so non-integer inputs
+            are truncated.  Both must be positive.
+
+    Returns:
+        The beta PDF value at ``x`` as a float.  Returns 0.0 if ``x``
+        is outside (0, 1) or if either shape parameter is non-positive
+        after truncation.
+    """
     alpha, beta = map(int, params)
     if 0 < x < 1 and alpha > 0 and beta > 0:
         n = min(alpha-1, beta-1)
@@ -790,10 +1617,23 @@ def betaPdf3(x, params):
 
 
 def gamma(x):
-    """
-    Lanczos approximation to the gamma function.
+    """Compute the gamma function Gamma(x) via the Lanczos approximation.
 
-    found on http://www.rskey.org/gamma.htm
+    Uses the Lanczos coefficients to approximate Gamma(x) for positive
+    real ``x``.  The formula is::
+
+        Gamma(x) ≈ sqrt(2*pi) / x * (x + 5.5)^(x + 0.5) * exp(-x - 5.5)
+                   * series(x)
+
+    where ``series(x)`` is the Lanczos sum with 7 coefficients.
+
+    Reference: http://www.rskey.org/gamma.htm
+
+    Args:
+        x: A positive real number.
+
+    Returns:
+        An approximation of Gamma(x) as a float.
     """
 
     ret = 1.000000000190015 + \
@@ -809,26 +1649,21 @@ def gamma(x):
 
 
 def gammaln(xx):
-    """
-    From numerical alogrithms in C
+    """Compute the natural logarithm of the gamma function, ln(Gamma(xx)).
 
-    float gammln(float xx)
-    Returns the value ln[(xx)] for xx > 0.
-    {
-        Internal arithmetic will be done in double precision, a nicety that you can omit if five-figure
-        accuracy is good enough.
-        double x,y,tmp,ser;
-        static double cof[6]={76.18009172947146,-86.50532032941677,
-             24.01409824083091,-1.231739572450155,
-             0.1208650973866179e-2,-0.5395239384953e-5};
-        int j;
-        y=x=xx;
-        tmp=x+5.5;
-        tmp -= (x+0.5)*log(tmp);
-        ser=1.000000000190015;
-        for (j=0;j<=5;j++) ser += cof[j]/++y;
-        return -tmp+log(2.5066282746310005*ser/x);
-    }
+    Implements the Lanczos approximation from *Numerical Algorithms in C*
+    (Press et al.).  Returns ``ln(Gamma(xx))`` for ``xx > 0``::
+
+        y = x = xx
+        tmp = x + 5.5 - (x + 0.5) * log(x + 5.5)
+        ser = 1.000000000190015 + sum(cof[j] / (y + j + 1) for j in 0..5)
+        return -tmp + log(2.5066282746310005 * ser / x)
+
+    Args:
+        xx: A positive real number.
+
+    Returns:
+        The natural logarithm of Gamma(xx) as a float.
     """
 
     cof = [76.18009172947146,-86.50532032941677,
@@ -851,7 +1686,23 @@ def gammaln(xx):
 
 GAMMA_INCOMP_ACCURACY = 1000
 def gammainc(a, x):
-    """Lower incomplete gamma function"""
+    """Compute the lower incomplete gamma function gamma(a, x).
+
+    Uses a series expansion truncated at ``GAMMA_INCOMP_ACCURACY`` terms
+    or when the current term drops below 0.0001::
+
+        gamma(a, x) = x^a * exp(-x) * sum_{n=0}^{inf} x^n / prod_{i=0}^{n}(a+i)
+
+    Reference: http://www.rskey.org/gamma.htm
+
+    Args:
+        a: The shape parameter (positive real number).
+        x: The upper integration limit (non-negative real number).
+
+    Returns:
+        An approximation of the lower incomplete gamma function
+        ``gamma(a, x)`` as a float.
+    """
     # found on http://www.rskey.org/gamma.htm
 
     ret = 0
@@ -865,6 +1716,22 @@ def gammainc(a, x):
 
 
 def erf(x):
+    """Compute an approximation of the error function erf(x).
+
+    Uses the rational approximation from the paper at
+    http://www.theorie.physik.uni-muenchen.de/~serge/erf-approx.pdf ::
+
+        a = (8 / (3*pi)) * (pi - 3) / (4 - pi)
+        erf(x) ≈ sign(x) * sqrt(1 - exp(-x^2 * (4/pi + a*x^2) / (1 + a*x^2)))
+
+    The approximation is accurate to approximately four decimal places.
+
+    Args:
+        x: A real number.
+
+    Returns:
+        An approximation of erf(x) in (-1, 1) as a float.
+    """
     # http://www.theorie.physik.uni-muenchen.de/~serge/erf-approx.pdf
 
     a = 8/(3*pi) * (pi - 3)/(4 - pi)
@@ -878,6 +1745,33 @@ def erf(x):
 
 
 def chiSquare(rows, expected=None, nparams=0):
+    """Compute the chi-square statistic and approximate p-value for a contingency table.
+
+    Given a 2-D table of observed counts ``rows``, computes expected
+    counts under independence (or uses the provided ``expected`` table),
+    then calculates::
+
+        chi^2 = sum((obs - exp)^2 / exp)
+
+    The degrees of freedom are
+    ``(nrows - 1) * (ncols - 1) - nparams``, clamped to at least 1.
+    The p-value is looked up in a hardcoded table via
+    :func:`chi_square_lookup`.
+
+    Args:
+        rows: A list of lists of observed counts.  All rows must have
+            the same length.
+        expected: A list of lists of expected counts with the same shape
+            as ``rows``.  If ``None`` (default), expected counts are
+            computed from marginal totals via :func:`make_expected`.
+        nparams: The number of estimated parameters to subtract from
+            the degrees of freedom.  Defaults to 0.
+
+    Returns:
+        A 2-tuple ``(chisq, p)`` where ``chisq`` is the chi-square
+        statistic (float) and ``p`` is the approximate p-value (float).
+        Returns ``(0, 1.0)`` if any row or column marginal sum is zero.
+    """
     # ex: rows = [[1,2,3],[1,4,5]]
     assert(len(set(map(len, rows))) <= 1)
 
@@ -901,6 +1795,20 @@ def chiSquare(rows, expected=None, nparams=0):
 
 
 def make_expected(rows):
+    """Compute expected counts for a contingency table under independence.
+
+    For each cell ``(i, j)``, the expected count is::
+
+        expected[i][j] = row_total[i] * col_total[j] / grand_total
+
+    Args:
+        rows: A list of lists of observed counts.  All rows must have
+            the same length.
+
+    Returns:
+        A list of lists of expected counts with the same shape as
+        ``rows``.
+    """
     rowtotals = map(sum, rows)
     coltotals = map(sum, zip(* rows))
     grandtotal = float(sum(rowtotals))
@@ -916,6 +1824,34 @@ def make_expected(rows):
 
 
 def chiSquareFit(xbins, ybins, func, nsamples, nparams, minsamples=5):
+    """Test a fitted distribution against binned data using a chi-square goodness-of-fit test.
+
+    Converts normalised bin heights ``ybins`` to raw counts, computes
+    expected counts from ``func`` integrated over each bin, discards
+    bins with fewer than ``minsamples`` expected observations, and then
+    calls :func:`chiSquare`.
+
+    Args:
+        xbins: A list of ``n+1`` bin-edge x-values (the left edges of
+            the first ``n`` bins).
+        ybins: A list of ``n`` normalised bin heights (density values,
+            not raw counts).
+        func: A callable ``func(x)`` representing the fitted PDF;
+            evaluated at each bin edge to compute expected bin mass.
+        nsamples: The total number of data samples used to convert
+            normalised heights to counts.
+        nparams: The number of fitted parameters to subtract from the
+            chi-square degrees of freedom.
+        minsamples: Minimum expected count required for a bin to be
+            included.  Defaults to 5.
+
+    Returns:
+        A 3-tuple ``(result, counts, expected)`` where ``result`` is the
+        ``(chisq, p)`` pair from :func:`chiSquare`, ``counts`` is the
+        list of observed counts for included bins, and ``expected`` is
+        the list of expected counts for included bins.  If no bins pass
+        the ``minsamples`` threshold, returns ``([0, 1], [], [])``.
+    """
     sizes = [xbins[i+1] - xbins[i] for i in range(len(xbins)-1)]
     sizes.append(sizes[-1])
 
@@ -973,7 +1909,23 @@ chi_square_table = {
 
 
 def chi_square_lookup(value, df):
+    """Look up an approximate p-value for a chi-square statistic from a hardcoded table.
 
+    Compares ``value`` against the ``chi_square_table`` for the given
+    degrees of freedom ``df`` (capped at 30) and returns the largest
+    significance level whose critical value does not exceed ``value``.
+
+    Args:
+        value: The observed chi-square statistic.
+        df: Degrees of freedom.  Values above 30 are treated as 30;
+            values of 0 or less return 1.0.
+
+    Returns:
+        An approximate p-value from the set
+        ``{0.20, 0.10, 0.05, 0.025, 0.01, 0.001}`` as a float.
+        Returns 1.0 if ``value`` is smaller than all critical values in
+        the table row.
+    """
     ps = [0.20, 0.10, 0.05, 0.025, 0.01, 0.001]
 
     if df <= 0:
@@ -991,6 +1943,22 @@ def chi_square_lookup(value, df):
 
 
 def ttest(lst1, lst2):
+    """Compute the Welch's t-statistic for two independent samples.
+
+    Calculates the two-sample t-statistic using the Welch (unequal
+    variance) formula::
+
+        t = |mean(lst1) - mean(lst2)| / sqrt(var(lst1)/n1 + var(lst2)/n2)
+
+    Note:
+        The function computes ``t`` and ``df`` but does not return
+        anything; the implementation body is incomplete and has no
+        ``return`` statement.
+
+    Args:
+        lst1: The first sample as a list of numeric values.
+        lst2: The second sample as a list of numeric values.
+    """
     sdevdist = sqrt(var(lst1)/len(lst1) + var(lst2)/len(lst2))
     t = abs(mean(lst1) - mean(lst2)) / sdevdist
     df = len(lst2) + len(lst2) - 2
@@ -1049,8 +2017,29 @@ infty	1.28156	1.64487	1.95999	2.57584
 
 
 def spearman(vec1, vec2):
-    """Spearman's rank test"""
+    """Compute a Spearman rank-order correlation-like statistic.
 
+    Computes a Z-score based on the sum of squared differences between
+    the original values (not their ranks, despite the name)::
+
+        R = sum((vec1[i] - vec2[i])^2 for i in range(n))
+        Z = (6*R - n*(n^2 - 1)) / (n*(n+1)*sqrt(n-1))
+
+    Note:
+        Despite the name, this implementation does not actually rank the
+        values before computing differences; it uses the raw values.
+        This differs from the standard Spearman rank correlation formula.
+
+    Args:
+        vec1: A list of numeric values.
+        vec2: A list of numeric values of the same length as ``vec1``.
+
+    Returns:
+        A Z-score float derived from the sum of squared raw differences.
+
+    Raises:
+        AssertionError: If ``vec1`` and ``vec2`` have different lengths.
+    """
     assert len(vec1) == len(vec2), "vec1 and vec2 are not the same length"
 
     n = len(vec1)
@@ -1065,11 +2054,26 @@ def spearman(vec1, vec2):
 
 
 
-# input:
-#   xdata, ydata  - data to fit
-#   func          - a function of the form f(x, params)
-#
 def fitCurve(xdata, ydata, func, paramsInit):
+    """Fit a parametric function to data using least-squares optimisation.
+
+    Uses :func:`scipy.optimize.leastsq` to minimise the sum of squared
+    residuals between ``ydata`` and ``func(x, params)`` evaluated at
+    each ``x`` in ``xdata``.
+
+    Args:
+        xdata: A list of x-values.
+        ydata: A list of observed y-values of the same length as
+            ``xdata``.
+        func: A callable ``func(x, params)`` that returns a scalar given
+            a single x-value and a parameter array.
+        paramsInit: Initial parameter guess as a list or array.
+
+    Returns:
+        A 2-tuple ``(params, resid_sum)`` where ``params`` is a list of
+        fitted parameter values and ``resid_sum`` is the sum of squared
+        residuals at the solution.
+    """
     import scipy.optimize
 
     y = np.array(ydata)
@@ -1087,6 +2091,27 @@ def fitCurve(xdata, ydata, func, paramsInit):
 
 
 def fitDistrib(func, paramsInit, data, start, end, step, perc=1.0):
+    """Fit a parametric distribution to a data histogram.
+
+    Note:
+        This function is currently disabled because it depends on
+        ``rasmus.util.distrib`` and ``rasmus.util.histbins``, which are
+        not available.  Calling it always raises ``NotImplementedError``.
+
+    Args:
+        func: A callable ``func(x, params)`` representing the PDF to fit.
+        paramsInit: Initial parameter guess.
+        data: The raw data samples to bin.
+        start: The lower edge of the histogram range.
+        end: The upper edge of the histogram range.
+        step: The bin width.
+        perc: A normalisation factor applied to bin heights.
+            Defaults to 1.0.
+
+    Raises:
+        NotImplementedError: Always, because the required dependency is
+            unavailable.
+    """
     # NOTE: fitDistrib is disabled because it depends on rasmus util.distrib
     # and util.histbins which are not available.
     # xdata, ydata = util.distrib(data, low=start, width=step)
@@ -1099,6 +2124,29 @@ def fitDistrib(func, paramsInit, data, start, end, step, perc=1.0):
 
 def plotfuncFit(func, paramsInit, xdata, ydata, start, end, step, plot=None,
                 **options):
+    """Fit a parametric function to data and (formerly) plot the result.
+
+    Calls :func:`fitCurve` to fit ``func`` to ``(xdata, ydata)`` and
+    returns the fitted parameters and residual sum.  Plotting via gnuplot
+    has been removed; the ``plot`` argument and plotting-related
+    parameters are retained for API compatibility but have no effect.
+
+    Args:
+        func: A callable ``func(x, params)`` representing the model.
+        paramsInit: Initial parameter guess.
+        xdata: A list of x-values.
+        ydata: A list of observed y-values.
+        start: Unused (formerly the start of the plot range).
+        end: Unused (formerly the end of the plot range).
+        step: Unused (formerly the plot step size).
+        plot: Unused.  Defaults to ``None``.
+        **options: Unused keyword arguments retained for compatibility.
+
+    Returns:
+        A 3-tuple ``(None, params, resid)`` where ``params`` is the list
+        of fitted parameters and ``resid`` is the sum of squared
+        residuals.
+    """
     # NOTE: plotting via gnuplot removed; returns params and resid only
     params, resid = fitCurve(xdata, ydata, func, paramsInit)
     # plot.plot(util.histbins(xdata), ydata, **options)
@@ -1108,13 +2156,61 @@ def plotfuncFit(func, paramsInit, xdata, ydata, start, end, step, plot=None,
 
 def plotdistribFit(func, paramsInit, data, start, end, step, plot=None,
                    **options):
+    """Fit a distribution to data and (formerly) plot the result.
+
+    Note:
+        This function is currently disabled because it depends on
+        ``rasmus.util.distrib``, which is not available.  Calling it
+        always raises ``NotImplementedError``.
+
+    Args:
+        func: A callable ``func(x, params)`` representing the PDF.
+        paramsInit: Initial parameter guess.
+        data: The raw data samples.
+        start: The lower edge of the histogram range.
+        end: The upper edge of the histogram range.
+        step: The bin width.
+        plot: Unused plot object.  Defaults to ``None``.
+        **options: Unused keyword arguments.
+
+    Raises:
+        NotImplementedError: Always, because the required dependency is
+            unavailable.
+    """
     # NOTE: disabled because it requires rasmus util.distrib
     raise NotImplementedError("plotdistribFit requires rasmus util.distrib which is not available")
 
 
 
 def solveCubic(a, b, c, real=True):
-    """solves x^3 + ax^2 + bx + c = 0 for x"""
+    """Solve the depressed-form cubic equation x^3 + ax^2 + bx + c = 0.
+
+    Applies the Cardano / Vieta substitution to reduce to a depressed
+    cubic and then computes all three cube roots using complex arithmetic.
+    Returns only real roots by default.
+
+    Algorithm:
+        1. Substitute ``x = t - a/3`` to eliminate the quadratic term,
+           yielding ``t^3 + pt + q = 0``.
+        2. Compute the square root of the discriminant
+           ``sqrt(q^2/4 + p^3/27)`` in complex arithmetic.
+        3. Find the three cube roots of ``q/2 + sqrt(...)`` using the
+           primitive cube root of unity.
+        4. Recover the three roots ``x_k = p/(3*u_k) - u_k - a/3``.
+
+    Args:
+        a: Coefficient of the x^2 term.
+        b: Coefficient of the x term.
+        c: The constant term.
+        real: If ``True`` (default), return only roots whose imaginary
+            part is smaller than 1e-10 in absolute value.  If ``False``,
+            return all three complex roots.
+
+    Returns:
+        A list of roots.  With ``real=True`` the list contains 1 or 3
+        real floats.  With ``real=False`` the list always contains 3
+        complex numbers.
+    """
 
     p = b - a*a / 3.0
     q = c + (2*a*a*a - 9*a*b) / 27.0
@@ -1155,7 +2251,18 @@ def solveCubic(a, b, c, real=True):
 
 
 def _solveCubic_test(n=100):
+    """Run a self-test of :func:`solveCubic` on random and fixed inputs.
 
+    Generates ``n`` random cubics (plus three fixed edge cases) and
+    verifies that each root ``x`` satisfies ``|x^3 + a*x^2 + b*x + c| < 1e-4``.
+
+    Args:
+        n: Number of random test cubics to generate.  Defaults to 100.
+
+    Raises:
+        AssertionError: If any computed root does not satisfy the
+            polynomial equation within tolerance.
+    """
     def test(a, b, c):
         xs = solveCubic(a, b, c)
 

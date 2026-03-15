@@ -1,19 +1,19 @@
 #!/usr/bin/env python
-'''
-Created on Aug 19, 2010
+"""Primer design pipeline for lincRNA cloning, qPCR, and in situ hybridisation.
+
+Wraps the primer3_core command-line tool to design three classes of primers
+from FASTA sequences: cloning primers (with optional Gateway attB flanks),
+qPCR primers, and in situ hybridisation probe primers.  Output can be
+formatted as human-readable text or as tab-delimited tables for downstream
+processing.
 
 Requirements:
-    - primer3_core
+    - primer3_core executable on PATH
 
-@author: Loyal Goff
+Usage::
 
-TODO:
-- Add bed file output for primers as option
-- Integrate a few more primer3 options into commandline
-    * number of primers
-    * GC adjustment
-    * etc...
-'''
+    python lincClonelib.py [options] <fastaFile.fa>
+"""
 
 #from Bio.Emboss import Primer3
 import getopt
@@ -45,10 +45,41 @@ attR = "GGGGACCACTTTGTACAAGAAAGCTGGGT" #Sequence to be added to the reverse prim
 
 
 class Usage(Exception):
+    """Exception raised for command-line usage errors in lincClonelib.
+
+    Attributes:
+        msg: Human-readable explanation of the error or the help message.
+    """
     def __init__(self, msg):
+        """Initialises a Usage exception with an error message.
+
+        Args:
+            msg: Human-readable error or help text.
+        """
         self.msg = msg
 
 def runPrimer3(fastaFile,p3CloneSetFile="/n/rinn_data1/users/lgoff/utils/primer_design/P3_cloning_primer_settings.p3",p3PCRSetFile="/n/rinn_data1/users/lgoff/utils/primer_design/P3_qPCR_primer_settings.p3",p3InsituSetFile="/n/rinn_data1/users/lgoff/utils/primer_design/P3_insitu_probe_settings.p3",verbose=False,keepTmp=False):
+    """Runs primer3_core to design qPCR, cloning, and in situ primers from a FASTA file.
+
+    Creates three Boulder-IO input files from the FASTA sequences and launches
+    three parallel primer3_core processes (one per primer type), each with its
+    own settings file.  Waits for all processes to complete before returning.
+
+    Args:
+        fastaFile: Path to a FASTA file of sequences to design primers for.
+            Sequences shorter than clonePrimerSteps[-1] + PRIMER_MAX_SIZE
+            bases are skipped for cloning design.
+        p3CloneSetFile: Path to a primer3 settings file for cloning primers.
+        p3PCRSetFile: Path to a primer3 settings file for qPCR primers.
+        p3InsituSetFile: Path to a primer3 settings file for in situ primers.
+        verbose: If True, write progress messages to stderr (default: False).
+        keepTmp: If True, retain the temporary Boulder-IO input files after
+            the run (default: False).
+
+    Returns:
+        A tuple of three strings: (qPCR_output_path, cloning_output_path,
+        insitu_output_path) giving the paths to the primer3 output files.
+    """
     baseName = fastaFile.rstrip(".fa")
     iter = sequencelib.FastaIterator(open(fastaFile,'r'))
     cloneTmpFname = baseName+"_clone.p3in"
@@ -97,17 +128,44 @@ def runPrimer3(fastaFile,p3CloneSetFile="/n/rinn_data1/users/lgoff/utils/primer_
     return (baseName+"_qPCR.p3out",baseName+"_cloning.p3out",baseName+"_insitu.p3out")
 
 def test():
+    """Smoke test for runPrimer3 using a hard-coded FASTA file.
+
+    Calls runPrimer3 on 'lincSFPQ.fa' and returns nothing.  Intended for
+    interactive testing only.
+    """
     fastaFile="lincSFPQ.fa"
     qPCR,cloning = runPrimer3(fastaFile)
     return
 
 def parsePrimer3(p3OutFile):
+    """Yields parsed primer3 Record objects from a primer3 output file.
+
+    Opens the specified output file and delegates parsing to primer3lib.parse,
+    yielding one Record object per sequence entry.
+
+    Args:
+        p3OutFile: Path to a primer3 output file (Boulder-IO format).
+
+    Yields:
+        primer3lib.Record objects, each containing the sequenceID, template
+        sequence, and a list of Primer objects.
+    """
     handle = open(p3OutFile,'r')
     iter = primer3lib.parse(handle)
     for record in iter:
         yield record
 
 def printqPCR(p3outFile,outHandle):
+    """Writes qPCR primer results in human-readable format.
+
+    Parses primer3 output and writes a formatted, multi-line report of qPCR
+    primer pairs grouped by sequence ID.  If no acceptable primers were found
+    for a sequence, a placeholder message is printed.
+
+    Args:
+        p3outFile: Path to a primer3 qPCR output file.
+        outHandle: Writable file-like object to receive the formatted output.
+    """
     recordIter = parsePrimer3(p3outFile)
     print("######################\n# qPCR Primers\n######################", file=outHandle)
     for record in recordIter:
@@ -129,6 +187,18 @@ def printqPCR(p3outFile,outHandle):
         print("--------------------------------", file=outHandle)
 
 def printqPCRTabDelim(p3outFile,outHandle):
+    """Writes qPCR primer results in tab-delimited format.
+
+    Parses primer3 output and writes one line per primer pair with columns:
+    sequenceID, primer type ('qPCR'), primer number, product size, forward
+    sequence, forward start, forward length, forward Tm, forward GC, reverse
+    sequence, reverse start, reverse length, reverse Tm, reverse GC.
+
+    Args:
+        p3outFile: Path to a primer3 qPCR output file.
+        outHandle: Writable file-like object to receive the tab-delimited
+            output.
+    """
     recordIter = parsePrimer3(p3outFile)
     #print >>outHandle, "######################\n# qPCR Primers\n######################"
     for record in recordIter:
@@ -145,6 +215,19 @@ def printqPCRTabDelim(p3outFile,outHandle):
 
 
 def printCloning(p3outFile,outHandle,gateway=False):
+    """Writes cloning primer results in human-readable format.
+
+    Parses primer3 output and writes a formatted, multi-line report of
+    cloning primer pairs grouped by sequence ID.  When gateway is True,
+    Gateway attB sequences are prepended to the forward and reverse primers
+    and 'Gateway' is noted in the output.
+
+    Args:
+        p3outFile: Path to a primer3 cloning output file.
+        outHandle: Writable file-like object to receive the formatted output.
+        gateway: If True, prepend attF to forward and attR to reverse primers
+            for Gateway cloning (default: False).
+    """
     recordIter = parsePrimer3(p3outFile)
     print("\n######################\n# Cloning Primers\n######################", file=outHandle)
     for record in recordIter:
@@ -170,6 +253,21 @@ def printCloning(p3outFile,outHandle,gateway=False):
         print("--------------------------------", file=outHandle)
 
 def printCloningTabDelim(p3outFile,outHandle,gateway=False):
+    """Writes cloning primer results in tab-delimited format.
+
+    Parses primer3 output and writes one line per primer pair with columns:
+    sequenceID, primer type ('Cloning'), primer number, product size, forward
+    sequence, forward start, forward length, forward Tm, forward GC, reverse
+    sequence, reverse start, reverse length, reverse Tm, reverse GC.  When
+    gateway is True, attB sequences are prepended to the primer sequences.
+
+    Args:
+        p3outFile: Path to a primer3 cloning output file.
+        outHandle: Writable file-like object to receive the tab-delimited
+            output.
+        gateway: If True, prepend attF to forward and attR to reverse primers
+            (default: False).
+    """
     recordIter = parsePrimer3(p3outFile)
     #print >>outHandle, "\n######################\n# Cloning Primers\n######################"
     for record in recordIter:
@@ -190,6 +288,15 @@ def printCloningTabDelim(p3outFile,outHandle,gateway=False):
                 print(outStr, file=outHandle)
 
 def printInsitu(p3outFile,outHandle):
+    """Writes in situ hybridisation primer results in human-readable format.
+
+    Parses primer3 output and writes a formatted, multi-line report of in situ
+    probe primer pairs grouped by sequence ID.
+
+    Args:
+        p3outFile: Path to a primer3 in situ output file.
+        outHandle: Writable file-like object to receive the formatted output.
+    """
     recordIter = parsePrimer3(p3outFile)
     print("######################\n# InSitu Primers\n######################", file=outHandle)
     for record in recordIter:
@@ -211,6 +318,18 @@ def printInsitu(p3outFile,outHandle):
         print("--------------------------------", file=outHandle)
 
 def printInsituTabDelim(p3outFile,outHandle):
+    """Writes in situ hybridisation primer results in tab-delimited format.
+
+    Parses primer3 output and writes one line per primer pair with columns:
+    sequenceID, primer type ('InSitu'), primer number, product size, forward
+    sequence, forward start, forward length, forward Tm, forward GC, reverse
+    sequence, reverse start, reverse length, reverse Tm, reverse GC.
+
+    Args:
+        p3outFile: Path to a primer3 in situ output file.
+        outHandle: Writable file-like object to receive the tab-delimited
+            output.
+    """
     recordIter = parsePrimer3(p3outFile)
     #print >>outHandle, "######################\n# qPCR Primers\n######################"
     for record in recordIter:
@@ -226,6 +345,17 @@ def printInsituTabDelim(p3outFile,outHandle):
                 print(outStr, file=outHandle)
 
 def printInsitu(p3outFile,outHandle):
+    """Writes in situ hybridisation primer results in human-readable format (second definition).
+
+    Duplicate of the earlier printInsitu definition; this version is the one
+    that Python will actually use at runtime.  Parses primer3 output and writes
+    a formatted, multi-line report of in situ probe primer pairs grouped by
+    sequence ID.
+
+    Args:
+        p3outFile: Path to a primer3 in situ output file.
+        outHandle: Writable file-like object to receive the formatted output.
+    """
     recordIter = parsePrimer3(p3outFile)
     print("######################\n# InSitu Primers\n######################", file=outHandle)
     for record in recordIter:
@@ -247,6 +377,19 @@ def printInsitu(p3outFile,outHandle):
         print("--------------------------------", file=outHandle)
 
 def printInsituTabDelim(p3outFile,outHandle):
+    """Writes ASO / in situ primer results in tab-delimited format (second definition).
+
+    Duplicate of the earlier printInsituTabDelim definition; this version
+    overrides the first at runtime.  Parses primer3 output for in situ /
+    ASO candidates and writes one tab-delimited line per primer pair with
+    an 'InSitu' type column.  When no candidates are found, writes an 'ASO'
+    type placeholder line.
+
+    Args:
+        p3outFile: Path to a primer3 output file.
+        outHandle: Writable file-like object to receive the tab-delimited
+            output.
+    """
     recordIter = parsePrimer3(p3outFile)
     #print >>outHandle, "######################\n# ASO Candidates\n######################"
     for record in recordIter:
@@ -262,6 +405,19 @@ def printInsituTabDelim(p3outFile,outHandle):
                 print(outStr, file=outHandle)
 
 def main(argv=None):
+    """Command-line entry point for the lincRNA primer design pipeline.
+
+    Parses command-line options, runs primer3 via runPrimer3, and writes
+    formatted primer output (human-readable or tab-delimited) to the output
+    file.  Cleans up temporary primer3 output files unless keepTmp is set.
+
+    Args:
+        argv: List of command-line argument strings.  Defaults to sys.argv
+            when None.
+
+    Raises:
+        SystemExit: On usage errors or when --help is requested.
+    """
     if argv is None:
         argv = sys.argv
     task = 'qpcr'

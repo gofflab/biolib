@@ -1,10 +1,14 @@
-'''
-Created on Sep 19, 2012
+"""Tools for designing Gibson Assembly fragments from FASTA sequences.
 
-Script to create gibson assembly fragments for ordering from a fasta file.
+Reads a FASTA file of sequences (e.g. cDNAs or genomic regions) and splits
+each into overlapping fragments suitable for Gibson Assembly cloning.
+Optionally prepends Gateway attB recombination sequences to the outermost
+primers.  Fragments are written in a tab-delimited or pretty-printed format.
 
-@author: lgoff
-'''
+Usage::
+
+    python gibson.py [options] <fastaFile.fa>
+"""
 #Imports
 import getopt
 import sys
@@ -31,10 +35,42 @@ options:
 '''
 
 class Usage(Exception):
+    """Exception raised for command-line usage errors.
+
+    Attributes:
+        msg: Human-readable explanation of the error or the help message.
+    """
     def __init__(self, msg):
+        """Initialises a Usage exception with an error message.
+
+        Args:
+            msg: Human-readable error or help text.
+        """
         self.msg = msg
 
 def gibson(fname,gateway=True,fragSize=500,overhangSize=20):
+    """Splits FASTA sequences into overlapping Gibson Assembly fragments.
+
+    Reads each record from a FASTA file and divides its sequence into a series
+    of fragments of approximately fragSize bp, with consecutive fragments
+    overlapping by overhangSize bp.  When gateway is True, the Gateway attB
+    forward site (attF) is prepended to the sequence and the reverse
+    complement of the Gateway attB reverse site (attR) is appended before
+    fragmentation.
+
+    Args:
+        fname: Path to a FASTA-format input file.
+        gateway: If True, add Gateway attB recombination sequences flanking
+            the insert before fragmentation (default: True).
+        fragSize: Target size in base pairs for each Gibson fragment
+            (default: 500).
+        overhangSize: Length in base pairs of the overlap between adjacent
+            fragments (default: 20).
+
+    Returns:
+        A dictionary mapping each FASTA record name to a list of fragment
+        sequence strings in 5'-to-3' order.
+    """
     res = {}
 
     #Fasta file handle
@@ -63,6 +99,17 @@ def gibson(fname,gateway=True,fragSize=500,overhangSize=20):
     return res
 
 def printGibson(fragDict,outHandle):
+    """Writes Gibson Assembly fragments to a file handle in tab-delimited format.
+
+    For each sequence in fragDict, prints a header line with the sequence name
+    followed by one line per fragment in the format:
+        <name>_block<N>\\t<fragment_sequence>
+
+    Args:
+        fragDict: Dictionary mapping sequence names to lists of fragment
+            sequence strings, as returned by gibson().
+        outHandle: Writable file-like object to receive the output.
+    """
     for k in fragDict.keys():
         print("%s:" % k, file=outHandle)
         blockCount = 0
@@ -77,6 +124,18 @@ def printGibson(fragDict,outHandle):
 # Main
 ##############
 def main(argv=None):
+    """Command-line entry point for the Gibson Assembly fragment designer.
+
+    Parses command-line arguments, calls gibson() to generate fragments from
+    the provided FASTA file, and writes the results with printGibson().
+
+    Args:
+        argv: List of command-line argument strings.  Defaults to sys.argv
+            when None.
+
+    Raises:
+        SystemExit: On usage errors or when --help is requested.
+    """
     if argv is None:
         argv = sys.argv
     verbose = False
