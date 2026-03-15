@@ -1,10 +1,20 @@
-'''
-Created on Aug 28, 2010
+"""Genome-level utilities and constants for human genome builds.
 
-This is a port of the genome.py module from seqtools (it is a work in progress)
+Contains chromosome names, lengths, and base frequencies for hg18, along with
+helper functions for fetching genome sequences (via pygr), generating random
+genomic regions, building repeat-masker and refGene NLMSA indices, and
+checking whether a sequence is soft-masked.
 
-@author: lgoff
-'''
+Note: Functions that depend on pygr (pygrConnect, build_rmsk_nlmsa,
+refGene_nlmsa, fetchSequence) are non-functional in Python 3 because pygr
+is a Python 2-only library.
+
+This is a port of the genome.py module from seqtools (work in progress).
+
+Originally created on Aug 28, 2010.
+
+Author: lgoff
+"""
 ############
 #Imports
 ############
@@ -94,6 +104,19 @@ bed_fields = ['chr','start','end','label','score','strand']
 #Functions
 #######
 def fetch_genbases(genhandle,genbases={}):
+    """Count occurrences of each nucleotide across an entire genome FASTA file.
+
+    Iterates over all sequences in the FASTA file and tallies A, T, G, C, and N
+    counts. Results are accumulated into the genbases dict.
+
+    Args:
+        genhandle: An open file handle to a genome FASTA file.
+        genbases: Optional dict to accumulate counts into (default new dict).
+            Mutated in-place and also returned.
+
+    Returns:
+        Dict mapping each base character to its total integer count.
+    """
     bases = ['A','T','G','C','N']
     geniter = sequencelib.FastaIterator(genhandle)
     for genseq in geniter:

@@ -161,6 +161,11 @@ class GoHandler(xml.sax.handler.ContentHandler):
         self.elm = ""
     
     def characters(self, text):
+        """Routes character data to the appropriate attribute of the current GoTerm.
+
+        Args:
+            text: Character data string from the SAX parser.
+        """
         if self.elm == "go:accession":
             self.term.accession = text
         elif self.elm == "go:name":
@@ -170,7 +175,22 @@ class GoHandler(xml.sax.handler.ContentHandler):
         
 
 class GoDatabase:
+    """In-memory representation of a Gene Ontology database loaded from OBO-XML.
+
+    Parses a GO OBO-XML file using SAX and stores all terms in a dictionary
+    indexed by GO accession.  Provides methods for traversing the GO DAG to
+    retrieve ancestor terms.
+
+    Attributes:
+        terms: Dictionary mapping GO accession strings to GoTerm objects.
+            Also includes an 'all' entry (AllTerm) as the synthetic root.
+    """
     def __init__(self, filename):
+        """Loads and parses a Gene Ontology OBO-XML file.
+
+        Args:
+            filename: Path to a GO OBO-XML file (e.g. gene_ontology.obo.xml).
+        """
         # Create a parser
         parser = make_parser()
 
@@ -193,6 +213,28 @@ class GoDatabase:
     
     
     def getAllParents(self, goid, touched=None, count=0, ret=True):
+        """Returns all ancestor GO terms of a given GO accession via BFS.
+
+        Recursively follows is_a and part_of relationships to collect all
+        ancestor GO accessions in breadth-first discovery order (excluding
+        the synthetic 'all' root).
+
+        Args:
+            goid: A GO accession string (e.g. 'GO:0008150') whose ancestors
+                should be retrieved.
+            touched: Dictionary used internally to track visited accessions
+                and their discovery order.  Should not be passed by callers.
+            count: Integer counter used internally during recursion.  Should
+                not be passed by callers.
+            ret: If True (default), return the sorted list of ancestor
+                accessions.  If False, only populate touched (used during
+                recursion).
+
+        Returns:
+            When ret is True, a list of GO accession strings for all ancestors
+            of goid, ordered by discovery sequence (breadth-first).  Returns
+            None when ret is False.
+        """
         if touched == None:
             touched = {}
         

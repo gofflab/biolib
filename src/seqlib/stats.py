@@ -1649,26 +1649,21 @@ def gamma(x):
 
 
 def gammaln(xx):
-    """
-    From numerical alogrithms in C
+    """Compute the natural logarithm of the gamma function, ln(Gamma(xx)).
 
-    float gammln(float xx)
-    Returns the value ln[(xx)] for xx > 0.
-    {
-        Internal arithmetic will be done in double precision, a nicety that you can omit if five-figure
-        accuracy is good enough.
-        double x,y,tmp,ser;
-        static double cof[6]={76.18009172947146,-86.50532032941677,
-             24.01409824083091,-1.231739572450155,
-             0.1208650973866179e-2,-0.5395239384953e-5};
-        int j;
-        y=x=xx;
-        tmp=x+5.5;
-        tmp -= (x+0.5)*log(tmp);
-        ser=1.000000000190015;
-        for (j=0;j<=5;j++) ser += cof[j]/++y;
-        return -tmp+log(2.5066282746310005*ser/x);
-    }
+    Implements the Lanczos approximation from *Numerical Algorithms in C*
+    (Press et al.).  Returns ``ln(Gamma(xx))`` for ``xx > 0``::
+
+        y = x = xx
+        tmp = x + 5.5 - (x + 0.5) * log(x + 5.5)
+        ser = 1.000000000190015 + sum(cof[j] / (y + j + 1) for j in 0..5)
+        return -tmp + log(2.5066282746310005 * ser / x)
+
+    Args:
+        xx: A positive real number.
+
+    Returns:
+        The natural logarithm of Gamma(xx) as a float.
     """
 
     cof = [76.18009172947146,-86.50532032941677,
@@ -1691,7 +1686,23 @@ def gammaln(xx):
 
 GAMMA_INCOMP_ACCURACY = 1000
 def gammainc(a, x):
-    """Lower incomplete gamma function"""
+    """Compute the lower incomplete gamma function gamma(a, x).
+
+    Uses a series expansion truncated at ``GAMMA_INCOMP_ACCURACY`` terms
+    or when the current term drops below 0.0001::
+
+        gamma(a, x) = x^a * exp(-x) * sum_{n=0}^{inf} x^n / prod_{i=0}^{n}(a+i)
+
+    Reference: http://www.rskey.org/gamma.htm
+
+    Args:
+        a: The shape parameter (positive real number).
+        x: The upper integration limit (non-negative real number).
+
+    Returns:
+        An approximation of the lower incomplete gamma function
+        ``gamma(a, x)`` as a float.
+    """
     # found on http://www.rskey.org/gamma.htm
 
     ret = 0
