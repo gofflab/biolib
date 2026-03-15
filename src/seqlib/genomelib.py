@@ -214,20 +214,50 @@ def pygrConnect(genome="hg18",useWorldbase = False):
 #pygr annotation layers
 #This is very closely tied to valor
 class UCSCStrandDescr(object):
+    """A descriptor that converts UCSC strand strings to pygr orientation ints.
+
+    Returns 1 for "+" strand and -1 for all other strands. Intended to be
+    used as a class attribute on sqlgraph row classes.
+    """
     def __get__(self, obj, objtype):
+        """Return orientation integer for the row object's strand.
+
+        Args:
+            obj: The row instance whose strand attribute is read.
+            objtype: The owner class (unused).
+
+        Returns:
+            1 if obj.strand == "+", otherwise -1.
+        """
         if obj.strand == '+':
             return 1
         else:
             return -1
 
 class UCSCSeqIntervalRow(sqlgraph.TupleO):
+    """A sqlgraph TupleO row class for UCSC interval tables.
+
+    Adds an orientation attribute via UCSCStrandDescr, converting the
+    strand column to a pygr-compatible +1/-1 integer.
+    """
     orientation = UCSCStrandDescr()
 
 serverInfo = sqlgraph.DBServerInfo(host='localhost',user='root',passwd='')
 
 def build_rmsk_nlmsa(genome="hg19"):
+    """Build a pygr NLMSA index for the RepeatMasker annotation table.
+
+    Connects to the local UCSC MySQL server, creates an AnnotationDB over
+    the rmsk table, and writes the NLMSA index to disk for later use.
+
+    Note: Requires a running local MySQL server with the UCSC schema and
+    pygr installed (Python 2 only).
+
+    Args:
+        genome: Genome build string (default "hg19").
+    """
     #This is horse shit...
-    
+
     seqDB = pygrConnect(genome)
     rmsk = sqlgraph.SQLTable('hg19.rmsk',serverInfo=serverInfo,itemClass=UCSCSeqIntervalRow,primaryKey="lookupName")
     annodb = annotation.AnnotationDB(rmsk,
@@ -244,9 +274,23 @@ def build_rmsk_nlmsa(genome="hg19"):
     al.build()
 
 def refGene_nlmsa(genome="hg19"):
+    """Return a pygr NLMSA index for the refGene annotation table.
+
+    Attempts to load a pre-built NLMSA from disk. If not found, builds one
+    from the local UCSC MySQL refGene table and saves it to disk.
+
+    Note: Requires a running local MySQL server with a 'lookupName' primary
+    key added to the refGene table, and pygr installed (Python 2 only).
+
+    Args:
+        genome: Genome build string (default "hg19").
+
+    Returns:
+        A cnestedlist.NLMSA object opened in read mode.
+    """
     #Needed to add primary key 'lookupName' to hg19.refGene for this to work (pygr requires unique ids for an annotation)
     #This is really CRAP....I don't know how or why anyone will every be able to use this....
-    
+
     try:
         al = cnestedlist.NLMSA('/n/rinn_data1/indexes/human/'+genome+'/refGene/refGene_'+genome,'r')
     except:
@@ -276,6 +320,20 @@ def refGene_nlmsa(genome="hg19"):
 #MISC
 ################
 def fetchSequence(chrom,start,end,strand,genome="hg18"):
+    """Fetch a genomic sequence from the specified region using pygr.
+
+    Note: Requires pygr (Python 2 only).
+
+    Args:
+        chrom: Chromosome name string (e.g. "chr1").
+        start: Start coordinate (0-based, integer).
+        end: End coordinate (integer).
+        strand: Strand string; if "-" the reverse complement is returned.
+        genome: Genome build string (default "hg18").
+
+    Returns:
+        A pygr sequence object for the requested region.
+    """
     connection=pygrConnect(genome)
     start,end=int(start),int(end)
     seq=connection[chrom][start:end]

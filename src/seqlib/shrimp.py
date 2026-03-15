@@ -1,4 +1,13 @@
 #!/usr/bin/python
+"""Utilities for running and parsing SHRiMP colorspace short-read alignments.
+
+Provides classes and functions for preparing input files, submitting jobs to
+LSF, parsing SHRiMP v1.1+ alignment output, and parsing probcalc statistical
+output for colorspace (SOLiD) short-read sequencing data.
+
+SHRiMP (Short Read Mapping Package) aligns colorspace reads from the Applied
+Biosystems SOLiD platform to a reference genome.
+"""
 import glob
 import os
 import random
@@ -25,9 +34,43 @@ max_length = 25
 order = ["readname","contigname","strand","contigstart","contigend","readstart","readend","readlength","score","editstring","readsequence"]
 #######################
 class ShrimpRead(Alignment):
-    """Extends Alignment class to include a few SHRiMP-specific attributes and methods"""
-    
+    """Extends Alignment class to include SHRiMP-specific attributes and methods.
+
+    Represents a single read alignment produced by the SHRiMP rmapper-cs
+    aligner.  In addition to the base Alignment attributes, stores colorspace
+    edit string information and counts of mismatches and crossover events.
+
+    Attributes:
+        readstart: 0-based start position within the read.
+        readend: End position within the read.
+        readcount: Number of times this read sequence was observed.
+        editstring: SHRiMP edit string describing mismatches and crossovers
+            relative to the reference.
+        readlength: Length of the read in bases.
+        crossovers: Number of colorspace crossover errors ('x') in the edit
+            string.
+        nSNPs: Number of apparent SNP calls (A/C/G/T substitutions) in the
+            edit string.
+        aligner: Always 'shrimp' for this class.
+    """
+
     def __init__(self,readname,chr,start,end,strand,readstart,readend,score,readcount,readsequence,editstring,readlength):
+        """Initialises a ShrimpRead from parsed SHRiMP alignment fields.
+
+        Args:
+            readname: Unique identifier (nuID or read name) of the read.
+            chr: Chromosome name of the alignment target.
+            start: 0-based genomic start coordinate.
+            end: Genomic end coordinate.
+            strand: Strand orientation ('+' or '-').
+            readstart: Start position within the read sequence.
+            readend: End position within the read sequence.
+            score: Alignment score from SHRiMP.
+            readcount: Number of times this read was observed (from nuID).
+            readsequence: The read sequence string.
+            editstring: SHRiMP edit/cigar string.
+            readlength: Length of the read.
+        """
         Alignment.__init__(self,readname,chr,start,end,strand,score,readcount,readsequence)
         self.readstart = int(readstart)
         self.readend = int(readend)
@@ -41,17 +84,58 @@ class ShrimpRead(Alignment):
         self.aligner = "shrimp"
         
     def __len__(self):
+        """Returns the length of the read."""
         return self.readlength
-    
+
     def __str__(self):
+        """Returns a short string representation: 'SHRiMP:readname:chr:start:end'."""
         return "SHRiMP:%s:%s:%d:%d" % (self.readname,self.chr,self.start,self.end)
-    
+
     def shrimpString(self):
+        """Returns the alignment formatted as a SHRiMP output line.
+
+        The returned string matches the tab-delimited format produced by
+        SHRiMP, beginning with '>readsequence_xreadcount'.
+
+        Returns:
+            A SHRiMP-format alignment string ending with a newline.
+        """
         return ">%s_x%d\t%s\t%s\t%d\t%d\t%d\t%d\t%d\t%d\t%s\t%s\n" % (self.readsequence,self.readcount,self.chr,self.strand,self.start,self.end,self.readstart,self.readend,self.readlength,self.score,self.editstring,self.readsequence)
 
 class ProbCalcRead(ShrimpRead):
-    """Extends ShrimpRead class to include statistical output from probcalc"""
+    """Extends ShrimpRead to include statistical scores from the SHRiMP probcalc utility.
+
+    The probcalc utility assigns probabilistic scores to SHRiMP alignments
+    to help distinguish true genomic mappings from chance alignments.  In
+    addition to ShrimpRead attributes, this class stores the normalised odds
+    ratio and two probability scores.
+
+    Attributes:
+        normodds: Normalised odds ratio for this alignment.
+        pgenome: Probability that the read originated from the genome.
+        pchance: Probability that the alignment is due to chance.
+    """
     def __init__(self,readname,chr,start,end,strand,readstart,readend,score,readcount,editstring,readlength,normodds,pgenome,pchance,readsequence=''):
+        """Initialises a ProbCalcRead from probcalc output fields.
+
+        Args:
+            readname: nuID-encoded read name; the read sequence is decoded
+                from this via misc.nuID2seq.
+            chr: Chromosome name of the alignment target.
+            start: 0-based genomic start coordinate.
+            end: Genomic end coordinate.
+            strand: Strand orientation ('+' or '-').
+            readstart: Start position within the read.
+            readend: End position within the read.
+            score: SHRiMP alignment score.
+            readcount: Observation count encoded in the read name.
+            editstring: SHRiMP edit string.
+            readlength: Length of the read.
+            normodds: Normalised odds ratio from probcalc.
+            pgenome: Probability the read originates from the genome.
+            pchance: Probability of a chance alignment.
+            readsequence: Optional read sequence string (default: '').
+        """
         ShrimpRead.__init__(self,readname,chr,start,end,strand,readstart,readend,score,readcount,readsequence,editstring,readlength)
         self.readsequence = misc.nuID2seq(self.readname)
         self.normodds = float(normodds)
@@ -78,6 +162,16 @@ def prepShrimp(file,basedir,binSize=1000):
     os.chdir(curDir)
 
 def GenRandom(length = 10, chars=string.letters+string.digits):
+    """Generates a random alphanumeric string of the given length.
+
+    Args:
+        length: Number of characters in the returned string (default: 10).
+        chars: Pool of characters to sample from (default: all ASCII letters
+            and digits).
+
+    Returns:
+        A random string of the specified length drawn from chars.
+    """
     return ''.join([random.choice(chars) for i in range(length)])
 
 def submitShrimp(queue="broad",cwd = os.getcwd(),outDir="../results/",readLength=25):

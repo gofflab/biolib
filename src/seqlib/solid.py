@@ -1,4 +1,15 @@
 #!/usr/bin/python
+"""Utilities for processing Applied Biosystems SOLiD colorspace sequencing data.
+
+Provides the CSSeq class for representing colorspace sequences, iterators for
+reading .csfasta and .qual files, and functions for converting between
+colorspace and DNA space, trimming linker sequences, building unique-read
+tables, and generating FASTQ files compatible with Bowtie.
+
+SOLiD sequencing encodes each base as a color (0-3) that represents the
+transition between successive dinucleotides.  The first character of each
+read is a nucleotide seed; subsequent characters are color codes.
+"""
 import os
 import sys
 

@@ -1,9 +1,17 @@
 #!/usr/bin/env python
-'''
-Created on Oct 27, 2009
+"""Data structures and utilities for working with BAM/SAM sequencing data.
 
-@author: lgoff
-'''
+Provides SamData and ChromData classes wrapping pysam for read access to BAM
+files, a plotRegions function for strand-aware coverage visualisation via rpy,
+and helper utilities for parsing SAM bitflags and converting reads to Interval
+objects.
+
+Note: This module depends on pysam and rpy, which must be installed separately.
+
+Originally created on Oct 27, 2009.
+
+Author: lgoff
+"""
 
 import intervallib
 import pysam
@@ -11,7 +19,26 @@ from rpy import *
 
 
 class SamData:
+    """Wrapper around a pysam BAM file handle.
+
+    Provides basic access to a sorted, indexed BAM file including pileup
+    queries and a pysam Samfile handle.
+
+    Attributes:
+        name: Sample name string.
+        file: Path to the BAM file.
+        description: Human-readable description string.
+        type: Data type label (default "basic").
+        handle: Open pysam.Samfile handle.
+    """
     def __init__(self,name,file,description):
+        """Initialize and open a SamData object.
+
+        Args:
+            name: Sample name string.
+            file: Path to the BAM file.
+            description: Human-readable description of the sample.
+        """
         self.name = name
         self.file = file
         self.description = description
@@ -19,22 +46,37 @@ class SamData:
         self.open()
 
     def __str__(self):
+        """Return the sample name string."""
         return self.name
 
     def open(self):
-        """Returns a pysam handle to the .BAM file"""
+        """Open the BAM file and store the pysam handle in self.handle."""
         self.handle = pysam.Samfile(self.file,'rb')
 
     def close(self):
+        """Close the pysam BAM file handle."""
         self.handle.close()
 
     def samSort(self):
+        """Placeholder for BAM sorting (not yet implemented)."""
         pass
 
     def samIndex(self):
+        """Placeholder for BAM indexing (not yet implemented)."""
         pass
 
     def pileupQuery(self,chr,start='',end=''):
+        """Return per-position pileup depths for a genomic region.
+
+        Args:
+            chr: Chromosome name string.
+            start: Start coordinate (default "" for beginning of chromosome).
+            end: End coordinate (default "" for end of chromosome).
+
+        Returns:
+            A tuple (pos, n) where pos is a list of genomic positions and
+            n is a list of corresponding pileup depths.
+        """
         pos = []
         n = []
         for pileupcolumn in self.handle.pileup(chr,start,end):
@@ -43,7 +85,25 @@ class SamData:
         return (pos,n)
 
 class ChromData(SamData):
+    """SamData subclass for chromatin modification ChIP-seq BAM files.
+
+    Extends SamData with mark and cell-line metadata.
+
+    Attributes:
+        mark: Histone mark or chromatin feature name (e.g. "H3K4me3").
+        cellLine: Cell line identifier string.
+        type: Data type label (always "chromatin").
+    """
     def __init__(self,name,file,description,mark,cellLine):
+        """Initialize a ChromData object.
+
+        Args:
+            name: Sample name string.
+            file: Path to the BAM file.
+            description: Human-readable description.
+            mark: Histone mark or antibody target name.
+            cellLine: Cell line identifier string.
+        """
         SamData.__init__(self, name=name, file=file, description=description)
         self.mark = mark
         self.cellLine = cellLine
@@ -74,6 +134,18 @@ GSE17312 = {'H3K27me3': broad_ref_basedir+'GSM433167_BI.H3K27me3_sorted.bam',
             }
 
 def openBams(dataDict,cellLine):
+    """Open a collection of BAM files described by a dictionary.
+
+    Creates ChromData objects for each entry in dataDict, opens each BAM
+    file handle, and returns the list.
+
+    Args:
+        dataDict: Dict mapping mark name to BAM file path.
+        cellLine: Cell line identifier assigned to all ChromData objects.
+
+    Returns:
+        List of opened ChromData objects.
+    """
     files = []
     for k,v in dataDict.items():
         sample = v.split("_")[0]
@@ -99,7 +171,18 @@ def plotRegions(bamHandle,chrom,start,end):
 
 """
 def plotRegions(bamHandle,chrom,start,end):
-    """Incorporates strandedness and possibly an extension factor to account for fragment size"""
+    """Plot strand-aware read coverage for a genomic region using rpy.
+
+    Counts per-position forward ("+") and reverse ("-") read coverage using
+    pysam fetch, then draws a coverage plot via rpy with forward reads in blue
+    above the axis and reverse reads in red below.
+
+    Args:
+        bamHandle: An open pysam Samfile or AlignmentFile handle.
+        chrom: Chromosome name string.
+        start: Start coordinate (integer).
+        end: End coordinate (integer).
+    """
     tmp = {}
     tmp["+"] = {}
     tmp["-"] = {}
@@ -119,8 +202,18 @@ def plotRegions(bamHandle,chrom,start,end):
 
 
 def plotChromProfile(bamFiles,chrom,start,end):
-    """Not terribly flexible at this point, but will plot 'tracks' from a given chrom,start,end 
-    position from a list of opened .BAM files"""
+    """Plot stacked pileup-depth tracks for multiple BAM files via rpy.
+
+    Opens a new rpy graphics device and plots one coverage track per BAM
+    file in a vertically stacked layout. Not very flexible at this point.
+
+    Args:
+        bamFiles: List of opened SamData (or similar) objects with a
+            .handle attribute supporting pileup() and a .name attribute.
+        chrom: Chromosome name string.
+        start: Start coordinate (integer).
+        end: End coordinate (integer).
+    """
 
     r.x11(width=6,height=10)
     r.par(mfrow=[len(bamFiles),1])
@@ -136,10 +229,17 @@ def plotChromProfile(bamFiles,chrom,start,end):
 #Functions for sam Reads
 ###############
 def getBitValue(n, p):
-    '''
-    get the bitvalue of denary (base 10) number n at the equivalent binary
-    position p (binary count starts at position 0 from the right)
-    '''
+    """Return the bit value of integer n at binary position p.
+
+    Binary position 0 is the least significant bit (rightmost).
+
+    Args:
+        n: Denary (base-10) integer.
+        p: Bit position to inspect (0-indexed from the right).
+
+    Returns:
+        0 or 1 depending on the bit at position p.
+    """
     return (n >> p) & 1
 
 def strandFlag(flag):
@@ -153,10 +253,33 @@ def strandFlag(flag):
         return "*"
 
 def samRead2Interval(samRead):
+    """Convert a single pysam AlignedRead to an intervallib.Interval.
+
+    The strand is determined from the SAM bitflag. Coordinates are converted
+    to 1-based by adding 1 to samRead.pos.
+
+    Args:
+        samRead: A pysam AlignedRead object.
+
+    Returns:
+        An intervallib.Interval with chr set to samRead.qname, 1-based
+        start/end coordinates, and strand derived from the bitflag.
+    """
     strand = strandFlag(int(samRead.flag))
     return intervallib.Interval(samRead.qname,int(samRead.pos)+1,int(samRead.pos)+samRead.rlen+1,strand)
 
 def samReads2Intervals(samReads,start='start',end='end',score='readcount',sampleName=".",offset=0):
-    """samReads is an iterator object over a set of sam reads using the pysam 'fetch' call"""
+    """Convert a pysam fetch iterator of SAM reads to Interval objects.
+
+    Note: This function is not yet implemented (passes without action).
+
+    Args:
+        samReads: Iterator object over SAM reads from a pysam 'fetch' call.
+        start: Name of the start coordinate field (default "start").
+        end: Name of the end coordinate field (default "end").
+        score: Name of the score field (default "readcount").
+        sampleName: Sample name string (default ".").
+        offset: Integer offset applied to coordinates (default 0).
+    """
     pass
 

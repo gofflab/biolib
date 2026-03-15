@@ -45,6 +45,14 @@ def broadConnect():
 #
 ###################
 def gbdbConnect(gbdbname = "hg18"):
+    """Opens a DictCursor connection to the UCSC Genome Browser public MySQL mirror.
+
+    Args:
+        gbdbname: UCSC genome database name (default: 'hg18').
+
+    Returns:
+        A MySQLdb DictCursor for the specified UCSC genome database.
+    """
     gbHost = "genome-mysql.cse.ucsc.edu"
     gbUser = "genome"
     gbdb = MySQLdb.connect(host=gbHost,user=gbUser,db=gbdbname)
@@ -56,6 +64,17 @@ def gbdbConnect(gbdbname = "hg18"):
 #
 ###################
 def valorGbdbConnect(gbdbname='hg19'):
+    """Opens a DictCursor connection to the local UCSC Genome Browser mirror on 'valor'.
+
+    Connects to a locally hosted UCSC mirror database using the root account
+    without a password.
+
+    Args:
+        gbdbname: Local UCSC genome database name (default: 'hg19').
+
+    Returns:
+        A MySQLdb DictCursor for the specified local genome database.
+    """
     gbHost = 'localhost'
     gbUser = 'root'
     gbPass = ''
@@ -68,6 +87,14 @@ def valorGbdbConnect(gbdbname='hg19'):
 #
 ####################
 def ensemblConnect():
+    """Opens a DictCursor connection to the public Ensembl MySQL server.
+
+    Connects to the homo_sapiens_core_47_36i schema on ensembldb.ensembl.org
+    using the anonymous account.
+
+    Returns:
+        A MySQLdb DictCursor for the Ensembl homo_sapiens_core_47_36i database.
+    """
     ensemblHost = "ensembldb.ensembl.org"
     ensemblUser = "anonymous"
     ensembldbname = "homo_sapiens_core_47_36i"
@@ -96,6 +123,18 @@ def fetchRefSeq(genome = 'hg18',lookupval = 'name'):
     return output 
 
 def fetchRefSeqIntervals(genome = 'hg18'):
+    """Returns a dictionary of RefSeq SplicedInterval objects keyed by transcript name.
+
+    Queries the refGene table of the UCSC Genome Browser database and
+    constructs an intervallib.SplicedInterval for each transcript.
+
+    Args:
+        genome: UCSC genome database name (default: 'hg18').
+
+    Returns:
+        A dictionary mapping RefSeq transcript names to SplicedInterval
+        objects.
+    """
     cursor = gbdbConnect(gbdbname=genome)
     select = "SELECT * from refGene"
     cursor.execute(select)
@@ -164,6 +203,23 @@ def fetchRefSeqIntervalsIndexed(genome='hg18',proteinCodingOnly=False,verbose=Fa
     return output
 
 def getIntervalFromRefSeq(lookupval,genome='hg18',lookupkey= 'name2',verbose=False):
+    """Returns SplicedInterval objects for RefSeq transcripts matching a lookup value.
+
+    Queries the UCSC refGene table for rows where lookupkey equals lookupval
+    and constructs an intervallib.SplicedInterval for each matching transcript.
+
+    Args:
+        lookupval: The value to search for (e.g. a gene symbol or transcript
+            ID).
+        genome: UCSC genome database name (default: 'hg18').
+        lookupkey: refGene column to search against (default: 'name2', which
+            corresponds to the gene symbol).
+        verbose: If True, print the SQL query and row count to stderr
+            (default: False).
+
+    Returns:
+        A list of SplicedInterval objects for the matching transcripts.
+    """
     cursor = gbdbConnect(gbdbname=genome)
     select = """SELECT * FROM refGene WHERE %s = '%s'""" % (lookupkey,lookupval)
     if verbose:
@@ -188,6 +244,22 @@ def getIntervalFromRefSeq(lookupval,genome='hg18',lookupkey= 'name2',verbose=Fal
     return output
 
 def getIntervalFromAll_mRNA(lookupval,genome='hg18',lookupkey='qName',verbose=False):
+    """Returns SplicedInterval objects from the UCSC all_mrna alignment table.
+
+    Queries the all_mrna table for mRNA BLAT alignments matching lookupval
+    in the specified column, and constructs a SplicedInterval for each row.
+
+    Args:
+        lookupval: The value to search for (e.g. a GenBank accession).
+        genome: UCSC genome database name (default: 'hg18').
+        lookupkey: all_mrna column to search (default: 'qName', the query
+            sequence name).
+        verbose: If True, print the SQL query and row count to stderr
+            (default: False).
+
+    Returns:
+        A list of SplicedInterval objects for the matching alignments.
+    """
     cursor = gbdbConnect(gbdbname=genome)
     select = """SELECT * FROM all_mrna WHERE %s = '%s'""" % (lookupkey,lookupval)
     if verbose:
@@ -229,6 +301,15 @@ def refseqTSS():
     return output
 
 def fetchwgRNA():
+    """Returns all wgRNA entries from the UCSC Genome Browser indexed by chromosome, strand, and name.
+
+    Queries the wgRna table of the default genome (hg18) and organises
+    results into a nested dictionary structure.
+
+    Returns:
+        A dictionary of the form output[chr][strand][name] = row_dict for
+        each wgRNA entry on a standard chromosome.
+    """
     cursor=gbdbConnect()
     select="SELECT * FROM wgRna"
     cursor.execute(select)
@@ -264,6 +345,20 @@ def hostRefSeq(chr,start,end,strand):
         return results
 
 def testCpG(chr,start,end):
+    """Tests whether a genomic interval overlaps a CpG island in the UCSC database.
+
+    Queries the cpgIslandExt table for CpG islands that overlap the given
+    coordinates.
+
+    Args:
+        chr: Chromosome name (e.g. 'chr1').
+        start: Start coordinate (0-based).
+        end: End coordinate.
+
+    Returns:
+        The first matching row as a dictionary, or False if no CpG island
+        overlaps the interval.
+    """
     cursor=gbdbConnect()
     selSQL="SELECT * from cpgIslandExt WHERE chrom='%s' AND chromStart<='%d' AND chromEnd>='%d'" % (chr,int(start),int(end))
     cursor.execute(selSQL)
@@ -291,6 +386,21 @@ def testwgRNA(chr,start,end,strand):
         return results
 
 def hostmRNA(chr,start,end,strand):
+    """Returns mRNA alignments that span a given genomic interval from the UCSC database.
+
+    Queries a chromosome-specific mRNA table (named <chr>_mrna) for
+    alignments that contain the interval [start, end].
+
+    Args:
+        chr: Chromosome name (e.g. 'chr1').
+        start: Start coordinate of the query interval.
+        end: End coordinate of the query interval.
+        strand: Strand orientation (not currently used in the SQL query).
+
+    Returns:
+        A list of row dictionaries for overlapping mRNA alignments, or False
+        if none are found.
+    """
     cursor=gbdbConnect()
     selSQL="SELECT * from %s_mrna WHERE tName='%s' AND tStart<='%d' AND tEnd>='%d'" % (chr,chr,int(start),int(end))
     cursor.execute(selSQL)
@@ -304,6 +414,19 @@ def hostmRNA(chr,start,end,strand):
         return results
 
 def fetchLincRNA(fname="/seq/compbio/lgoff/lincRNAs/hg18_lincRNA_Guttman.bed"):
+    """Reads a lincRNA BED file and returns intervals indexed by chromosome.
+
+    Parses a three-column BED file (chr, start, end) and organises the
+    resulting intervals into a dictionary keyed by chromosome name.
+
+    Args:
+        fname: Path to a BED file of lincRNA intervals (default: hg18
+            Guttman et al. lincRNA catalogue).
+
+    Returns:
+        A dictionary mapping chromosome names to lists of interval
+        dictionaries, each with keys 'chr', 'start' (int), and 'end' (int).
+    """
     handle=open(fname,'r')
     lincs={}
     for chr in genomelib.chr_names:
@@ -318,6 +441,21 @@ def fetchLincRNA(fname="/seq/compbio/lgoff/lincRNAs/hg18_lincRNA_Guttman.bed"):
     return lincs
 
 def fetchmiRNASeeds(fname="/seq/compbio/lgoff/smallRNAs/genomes/human/microRNA/mature.fa",species = 'hsa'):
+    """Reads a miRBase FASTA file and returns a dictionary mapping seed sequences to miRNA names.
+
+    Extracts the 7-nt seed sequence (positions 2-8 of the mature miRNA) for
+    each entry matching the given species prefix.
+
+    Args:
+        fname: Path to a miRBase mature miRNA FASTA file (default: internal
+            Broad Institute path).
+        species: Two- or three-letter miRBase species prefix to filter by
+            (default: 'hsa' for Homo sapiens).
+
+    Returns:
+        A dictionary mapping 7-nt seed sequences (str) to the first token
+        of the miRNA name (str).
+    """
     handle = open(fname,'r')
     seeds = {}
     iter = sequencelib.FastaIterator(handle)
@@ -331,6 +469,21 @@ def fetchmiRNASeeds(fname="/seq/compbio/lgoff/smallRNAs/genomes/human/microRNA/m
 ############
 
 def findRepeatOverlap(interval,cursor=None):
+    """Returns RepeatMasker annotations that overlap a given genomic interval.
+
+    Queries the rmsk table of the local UCSC mirror for repeat elements that
+    partially or fully overlap the interval.
+
+    Args:
+        interval: An intervallib interval object with chr, start, end, and
+            genome attributes.
+        cursor: An optional pre-existing MySQLdb DictCursor.  If None, a new
+            connection to the local valor UCSC mirror is opened.
+
+    Returns:
+        A list of row dictionaries for overlapping repeats, or False if none
+        are found.
+    """
     if cursor == None:
         cursor = valorGbdbConnect(interval.genome)
     selSQL = "SELECT * from rmsk WHERE genoName = '%s' AND (genoStart >= '%d' OR genoEnd >= '%d') AND (genoStart <= '%d' OR genoEnd <= '%d')" % (interval.chr,interval.start,interval.start,interval.end,interval.end)
@@ -345,6 +498,21 @@ def findRepeatOverlap(interval,cursor=None):
         return results
     
 def findUCSCOverlap(interval,cursor=None):
+    """Returns UCSC knownGene entries (with RefSeq mapping) that overlap a given interval.
+
+    Queries the knownGene table joined to knownToRefSeq on the local UCSC
+    mirror for known genes that partially or fully overlap the interval.
+
+    Args:
+        interval: An intervallib interval object with chr, start, end, and
+            genome attributes.
+        cursor: An optional pre-existing MySQLdb DictCursor.  If None, a new
+            connection to the local valor UCSC mirror is opened.
+
+    Returns:
+        A list of row dictionaries for overlapping known genes, or False if
+        none are found.
+    """
     if cursor == None:
         cursor = valorGbdbConnect(interval.genome)
     selSQL = "SELECT * from knownGene kg LEFT JOIN knownToRefSeq krs ON kg.name = krs.name WHERE kg.chrom = '%s' AND (kg.txStart >= '%d' OR kg.txEnd >= '%d') AND (kg.txStart <= '%d' OR kg.txEnd <= '%d')" % (interval.chr,interval.start,interval.start,interval.end,interval.end)

@@ -1716,6 +1716,22 @@ def gammainc(a, x):
 
 
 def erf(x):
+    """Compute an approximation of the error function erf(x).
+
+    Uses the rational approximation from the paper at
+    http://www.theorie.physik.uni-muenchen.de/~serge/erf-approx.pdf ::
+
+        a = (8 / (3*pi)) * (pi - 3) / (4 - pi)
+        erf(x) ≈ sign(x) * sqrt(1 - exp(-x^2 * (4/pi + a*x^2) / (1 + a*x^2)))
+
+    The approximation is accurate to approximately four decimal places.
+
+    Args:
+        x: A real number.
+
+    Returns:
+        An approximation of erf(x) in (-1, 1) as a float.
+    """
     # http://www.theorie.physik.uni-muenchen.de/~serge/erf-approx.pdf
 
     a = 8/(3*pi) * (pi - 3)/(4 - pi)
@@ -1729,6 +1745,33 @@ def erf(x):
 
 
 def chiSquare(rows, expected=None, nparams=0):
+    """Compute the chi-square statistic and approximate p-value for a contingency table.
+
+    Given a 2-D table of observed counts ``rows``, computes expected
+    counts under independence (or uses the provided ``expected`` table),
+    then calculates::
+
+        chi^2 = sum((obs - exp)^2 / exp)
+
+    The degrees of freedom are
+    ``(nrows - 1) * (ncols - 1) - nparams``, clamped to at least 1.
+    The p-value is looked up in a hardcoded table via
+    :func:`chi_square_lookup`.
+
+    Args:
+        rows: A list of lists of observed counts.  All rows must have
+            the same length.
+        expected: A list of lists of expected counts with the same shape
+            as ``rows``.  If ``None`` (default), expected counts are
+            computed from marginal totals via :func:`make_expected`.
+        nparams: The number of estimated parameters to subtract from
+            the degrees of freedom.  Defaults to 0.
+
+    Returns:
+        A 2-tuple ``(chisq, p)`` where ``chisq`` is the chi-square
+        statistic (float) and ``p`` is the approximate p-value (float).
+        Returns ``(0, 1.0)`` if any row or column marginal sum is zero.
+    """
     # ex: rows = [[1,2,3],[1,4,5]]
     assert(len(set(map(len, rows))) <= 1)
 
@@ -1752,6 +1795,20 @@ def chiSquare(rows, expected=None, nparams=0):
 
 
 def make_expected(rows):
+    """Compute expected counts for a contingency table under independence.
+
+    For each cell ``(i, j)``, the expected count is::
+
+        expected[i][j] = row_total[i] * col_total[j] / grand_total
+
+    Args:
+        rows: A list of lists of observed counts.  All rows must have
+            the same length.
+
+    Returns:
+        A list of lists of expected counts with the same shape as
+        ``rows``.
+    """
     rowtotals = map(sum, rows)
     coltotals = map(sum, zip(* rows))
     grandtotal = float(sum(rowtotals))
@@ -1767,6 +1824,34 @@ def make_expected(rows):
 
 
 def chiSquareFit(xbins, ybins, func, nsamples, nparams, minsamples=5):
+    """Test a fitted distribution against binned data using a chi-square goodness-of-fit test.
+
+    Converts normalised bin heights ``ybins`` to raw counts, computes
+    expected counts from ``func`` integrated over each bin, discards
+    bins with fewer than ``minsamples`` expected observations, and then
+    calls :func:`chiSquare`.
+
+    Args:
+        xbins: A list of ``n+1`` bin-edge x-values (the left edges of
+            the first ``n`` bins).
+        ybins: A list of ``n`` normalised bin heights (density values,
+            not raw counts).
+        func: A callable ``func(x)`` representing the fitted PDF;
+            evaluated at each bin edge to compute expected bin mass.
+        nsamples: The total number of data samples used to convert
+            normalised heights to counts.
+        nparams: The number of fitted parameters to subtract from the
+            chi-square degrees of freedom.
+        minsamples: Minimum expected count required for a bin to be
+            included.  Defaults to 5.
+
+    Returns:
+        A 3-tuple ``(result, counts, expected)`` where ``result`` is the
+        ``(chisq, p)`` pair from :func:`chiSquare`, ``counts`` is the
+        list of observed counts for included bins, and ``expected`` is
+        the list of expected counts for included bins.  If no bins pass
+        the ``minsamples`` threshold, returns ``([0, 1], [], [])``.
+    """
     sizes = [xbins[i+1] - xbins[i] for i in range(len(xbins)-1)]
     sizes.append(sizes[-1])
 
@@ -1824,7 +1909,23 @@ chi_square_table = {
 
 
 def chi_square_lookup(value, df):
+    """Look up an approximate p-value for a chi-square statistic from a hardcoded table.
 
+    Compares ``value`` against the ``chi_square_table`` for the given
+    degrees of freedom ``df`` (capped at 30) and returns the largest
+    significance level whose critical value does not exceed ``value``.
+
+    Args:
+        value: The observed chi-square statistic.
+        df: Degrees of freedom.  Values above 30 are treated as 30;
+            values of 0 or less return 1.0.
+
+    Returns:
+        An approximate p-value from the set
+        ``{0.20, 0.10, 0.05, 0.025, 0.01, 0.001}`` as a float.
+        Returns 1.0 if ``value`` is smaller than all critical values in
+        the table row.
+    """
     ps = [0.20, 0.10, 0.05, 0.025, 0.01, 0.001]
 
     if df <= 0:
@@ -1842,6 +1943,22 @@ def chi_square_lookup(value, df):
 
 
 def ttest(lst1, lst2):
+    """Compute the Welch's t-statistic for two independent samples.
+
+    Calculates the two-sample t-statistic using the Welch (unequal
+    variance) formula::
+
+        t = |mean(lst1) - mean(lst2)| / sqrt(var(lst1)/n1 + var(lst2)/n2)
+
+    Note:
+        The function computes ``t`` and ``df`` but does not return
+        anything; the implementation body is incomplete and has no
+        ``return`` statement.
+
+    Args:
+        lst1: The first sample as a list of numeric values.
+        lst2: The second sample as a list of numeric values.
+    """
     sdevdist = sqrt(var(lst1)/len(lst1) + var(lst2)/len(lst2))
     t = abs(mean(lst1) - mean(lst2)) / sdevdist
     df = len(lst2) + len(lst2) - 2
@@ -1900,8 +2017,29 @@ infty	1.28156	1.64487	1.95999	2.57584
 
 
 def spearman(vec1, vec2):
-    """Spearman's rank test"""
+    """Compute a Spearman rank-order correlation-like statistic.
 
+    Computes a Z-score based on the sum of squared differences between
+    the original values (not their ranks, despite the name)::
+
+        R = sum((vec1[i] - vec2[i])^2 for i in range(n))
+        Z = (6*R - n*(n^2 - 1)) / (n*(n+1)*sqrt(n-1))
+
+    Note:
+        Despite the name, this implementation does not actually rank the
+        values before computing differences; it uses the raw values.
+        This differs from the standard Spearman rank correlation formula.
+
+    Args:
+        vec1: A list of numeric values.
+        vec2: A list of numeric values of the same length as ``vec1``.
+
+    Returns:
+        A Z-score float derived from the sum of squared raw differences.
+
+    Raises:
+        AssertionError: If ``vec1`` and ``vec2`` have different lengths.
+    """
     assert len(vec1) == len(vec2), "vec1 and vec2 are not the same length"
 
     n = len(vec1)
@@ -1916,11 +2054,26 @@ def spearman(vec1, vec2):
 
 
 
-# input:
-#   xdata, ydata  - data to fit
-#   func          - a function of the form f(x, params)
-#
 def fitCurve(xdata, ydata, func, paramsInit):
+    """Fit a parametric function to data using least-squares optimisation.
+
+    Uses :func:`scipy.optimize.leastsq` to minimise the sum of squared
+    residuals between ``ydata`` and ``func(x, params)`` evaluated at
+    each ``x`` in ``xdata``.
+
+    Args:
+        xdata: A list of x-values.
+        ydata: A list of observed y-values of the same length as
+            ``xdata``.
+        func: A callable ``func(x, params)`` that returns a scalar given
+            a single x-value and a parameter array.
+        paramsInit: Initial parameter guess as a list or array.
+
+    Returns:
+        A 2-tuple ``(params, resid_sum)`` where ``params`` is a list of
+        fitted parameter values and ``resid_sum`` is the sum of squared
+        residuals at the solution.
+    """
     import scipy.optimize
 
     y = np.array(ydata)
@@ -1938,6 +2091,27 @@ def fitCurve(xdata, ydata, func, paramsInit):
 
 
 def fitDistrib(func, paramsInit, data, start, end, step, perc=1.0):
+    """Fit a parametric distribution to a data histogram.
+
+    Note:
+        This function is currently disabled because it depends on
+        ``rasmus.util.distrib`` and ``rasmus.util.histbins``, which are
+        not available.  Calling it always raises ``NotImplementedError``.
+
+    Args:
+        func: A callable ``func(x, params)`` representing the PDF to fit.
+        paramsInit: Initial parameter guess.
+        data: The raw data samples to bin.
+        start: The lower edge of the histogram range.
+        end: The upper edge of the histogram range.
+        step: The bin width.
+        perc: A normalisation factor applied to bin heights.
+            Defaults to 1.0.
+
+    Raises:
+        NotImplementedError: Always, because the required dependency is
+            unavailable.
+    """
     # NOTE: fitDistrib is disabled because it depends on rasmus util.distrib
     # and util.histbins which are not available.
     # xdata, ydata = util.distrib(data, low=start, width=step)
@@ -1950,6 +2124,29 @@ def fitDistrib(func, paramsInit, data, start, end, step, perc=1.0):
 
 def plotfuncFit(func, paramsInit, xdata, ydata, start, end, step, plot=None,
                 **options):
+    """Fit a parametric function to data and (formerly) plot the result.
+
+    Calls :func:`fitCurve` to fit ``func`` to ``(xdata, ydata)`` and
+    returns the fitted parameters and residual sum.  Plotting via gnuplot
+    has been removed; the ``plot`` argument and plotting-related
+    parameters are retained for API compatibility but have no effect.
+
+    Args:
+        func: A callable ``func(x, params)`` representing the model.
+        paramsInit: Initial parameter guess.
+        xdata: A list of x-values.
+        ydata: A list of observed y-values.
+        start: Unused (formerly the start of the plot range).
+        end: Unused (formerly the end of the plot range).
+        step: Unused (formerly the plot step size).
+        plot: Unused.  Defaults to ``None``.
+        **options: Unused keyword arguments retained for compatibility.
+
+    Returns:
+        A 3-tuple ``(None, params, resid)`` where ``params`` is the list
+        of fitted parameters and ``resid`` is the sum of squared
+        residuals.
+    """
     # NOTE: plotting via gnuplot removed; returns params and resid only
     params, resid = fitCurve(xdata, ydata, func, paramsInit)
     # plot.plot(util.histbins(xdata), ydata, **options)
@@ -1959,13 +2156,61 @@ def plotfuncFit(func, paramsInit, xdata, ydata, start, end, step, plot=None,
 
 def plotdistribFit(func, paramsInit, data, start, end, step, plot=None,
                    **options):
+    """Fit a distribution to data and (formerly) plot the result.
+
+    Note:
+        This function is currently disabled because it depends on
+        ``rasmus.util.distrib``, which is not available.  Calling it
+        always raises ``NotImplementedError``.
+
+    Args:
+        func: A callable ``func(x, params)`` representing the PDF.
+        paramsInit: Initial parameter guess.
+        data: The raw data samples.
+        start: The lower edge of the histogram range.
+        end: The upper edge of the histogram range.
+        step: The bin width.
+        plot: Unused plot object.  Defaults to ``None``.
+        **options: Unused keyword arguments.
+
+    Raises:
+        NotImplementedError: Always, because the required dependency is
+            unavailable.
+    """
     # NOTE: disabled because it requires rasmus util.distrib
     raise NotImplementedError("plotdistribFit requires rasmus util.distrib which is not available")
 
 
 
 def solveCubic(a, b, c, real=True):
-    """solves x^3 + ax^2 + bx + c = 0 for x"""
+    """Solve the depressed-form cubic equation x^3 + ax^2 + bx + c = 0.
+
+    Applies the Cardano / Vieta substitution to reduce to a depressed
+    cubic and then computes all three cube roots using complex arithmetic.
+    Returns only real roots by default.
+
+    Algorithm:
+        1. Substitute ``x = t - a/3`` to eliminate the quadratic term,
+           yielding ``t^3 + pt + q = 0``.
+        2. Compute the square root of the discriminant
+           ``sqrt(q^2/4 + p^3/27)`` in complex arithmetic.
+        3. Find the three cube roots of ``q/2 + sqrt(...)`` using the
+           primitive cube root of unity.
+        4. Recover the three roots ``x_k = p/(3*u_k) - u_k - a/3``.
+
+    Args:
+        a: Coefficient of the x^2 term.
+        b: Coefficient of the x term.
+        c: The constant term.
+        real: If ``True`` (default), return only roots whose imaginary
+            part is smaller than 1e-10 in absolute value.  If ``False``,
+            return all three complex roots.
+
+    Returns:
+        A list of roots.  With ``real=True`` the list contains 1 or 3
+        real floats.  With ``real=False`` the list always contains 3
+        complex numbers.
+    """
 
     p = b - a*a / 3.0
     q = c + (2*a*a*a - 9*a*b) / 27.0
@@ -2006,7 +2251,18 @@ def solveCubic(a, b, c, real=True):
 
 
 def _solveCubic_test(n=100):
+    """Run a self-test of :func:`solveCubic` on random and fixed inputs.
 
+    Generates ``n`` random cubics (plus three fixed edge cases) and
+    verifies that each root ``x`` satisfies ``|x^3 + a*x^2 + b*x + c| < 1e-4``.
+
+    Args:
+        n: Number of random test cubics to generate.  Defaults to 100.
+
+    Raises:
+        AssertionError: If any computed root does not satisfy the
+            polynomial equation within tolerance.
+    """
     def test(a, b, c):
         xs = solveCubic(a, b, c)
 

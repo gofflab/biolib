@@ -1,4 +1,11 @@
 #!/usr/bin/env python
+"""Probability and statistics tools for DNA sequence analysis.
+
+Provides signal-to-noise ratio, Z-score, binning, cumulative sums,
+nucleotide frequency utilities, Gaussian evaluation, moving averages,
+Poisson and binomial probability functions, combinatorics, and
+dictionary utility functions used throughout seqlib.
+"""
 import math
 import operator
 import random
@@ -12,21 +19,61 @@ import numpy as np
 #Probability Tools for DNA sequence analysis
 #######
 def snr(observed,expected):
+    """Compute the signal-to-noise ratio (SNR) of an observed count vs an expected count.
+
+    Calculates the simple ratio::
+
+        SNR = observed / expected
+
+    Args:
+        observed: The observed count or value (numeric).
+        expected: The expected count or value (numeric, must be non-zero).
+
+    Returns:
+        The ratio observed / expected as a float.
+    """
     return observed/expected
 
 def zscore(observed,expected):
+    """Compute the Z-score of an observed count under a Poisson null model.
+
+    Assumes the standard deviation equals the square root of the
+    expected count (Poisson approximation)::
+
+        Z = (observed - expected) / sqrt(expected)
+
+    Args:
+        observed: The observed count or value (numeric).
+        expected: The expected count or value (numeric, must be positive).
+
+    Returns:
+        The Z-score as a float.
+    """
     return (observed-expected)/math.sqrt(expected)
 
 def which_bin(bins, x, safe=0):
-    """
-    # if we're interested in binning x with boundaries
-    # 0, 5, 10, 15
-    # then it will return which boundary it belongs in.
-    # if x<0: -1
-    # if 0<=x<5: 0
-    # if 5<=x<10: 1
-    # if 10<=x<15: 2
-    # if x>=15: 3
+    """Determine which bin interval a value ``x`` falls into.
+
+    Given sorted bin boundary values, returns the 0-based index of the
+    interval that contains ``x``.  For example, with boundaries
+    ``[0, 5, 10, 15]``::
+
+        x < 0       -> -1
+        0 <= x < 5  ->  0
+        5 <= x < 10 ->  1
+        10 <= x < 15->  2
+        x >= 15     ->  3   (or len(bins) when safe=0)
+
+    Args:
+        bins: A sorted list of numeric bin boundary values.
+        x: The value to bin.
+        safe: If ``1`` and ``x`` exactly equals ``bins[-1]``, returns
+            ``len(bins)`` instead of the usual out-of-range value.
+            Defaults to 0.
+
+    Returns:
+        An integer bin index.  Returns ``-1`` if ``x < bins[0]``, or
+        ``len(bins)`` if ``x >= bins[-1]`` (unless ``safe=1`` applies).
     """
     if x<bins[0]: return -1
     for i in range(1,len(bins)):
@@ -35,6 +82,20 @@ def which_bin(bins, x, safe=0):
     return len(bins)
 
 def cumulative_sum(quality):
+    """Compute the cumulative sum of a list in-place-style (returns a new list).
+
+    Creates a copy of ``quality`` and then replaces each element with
+    the running total up to and including that position.
+
+    Args:
+        quality: A list of numeric values.
+
+    Returns:
+        A new list of the same length as ``quality`` where element ``i``
+        is the sum of ``quality[0]`` through ``quality[i]``.  Returns
+        the input unchanged (empty list or falsy value) if ``quality``
+        is empty.
+    """
     if not quality: return quality
     sum_q = quality[:]
     for i in range(1,len(quality)):
@@ -42,7 +103,20 @@ def cumulative_sum(quality):
     return sum_q
 
 def frequency_dic(seq):
-    """Generates dictionary of k,v='nucleotide':'frequency' from seq"""
+    """Build a nucleotide frequency dictionary from a DNA sequence.
+
+    Converts ``seq`` to uppercase and counts each of the four standard
+    bases (A, C, G, T) as a fraction of the total sequence length.
+
+    Args:
+        seq: A DNA sequence string.  Mixed-case input is handled by
+            uppercasing before counting.
+
+    Returns:
+        A dictionary mapping each of ``'A'``, ``'C'``, ``'G'``,
+        ``'T'`` to its relative frequency (float in [0, 1]).  Bases not
+        present in ``seq`` are mapped to 0.0.
+    """
     dic = {}
     bases = ['A','C','G','T']
     seq=seq.upper()
@@ -51,6 +125,27 @@ def frequency_dic(seq):
     return dic
 
 def pick_one(dic):
+    """Sample a single item from a dictionary of items and their probabilities.
+
+    Builds a cumulative distribution from the dictionary's values and
+    draws one item proportionally.  For example, with
+    ``{'A': .18, 'C': .32, 'G': .32, 'T': .18}``, ``'A'`` is returned
+    with probability 0.18, ``'C'`` with 0.32, and so on.
+
+    Note:
+        The function relies on :func:`cget` to extract values from
+        ``dic.items()``; the behaviour may vary depending on dictionary
+        iteration order (insertion order in Python 3.7+).
+
+    Args:
+        dic: A dictionary mapping hashable items to their relative
+            probabilities.  Values should be non-negative; they need
+            not sum to exactly 1.
+
+    Returns:
+        A randomly selected key from ``dic``, sampled with probability
+        proportional to its value.
+    """
     # {'A': .18, 'C': .32, 'G': .32, 'T': .18}
     # will generate A with probability .18 and so on
     items = dic.items()
@@ -66,6 +161,22 @@ def pick_one(dic):
         return items[which_bin(cums, random.uniform(0,cums[-1]), safe=1)][0]
 
 def pick_many(dic, n):
+    """Sample ``n`` items independently from a probability dictionary.
+
+    Builds a cumulative distribution from the dictionary's values once
+    and then draws ``n`` samples with replacement.  For example, with
+    ``{'A': .18, 'C': .32, 'G': .32, 'T': .18}``, each draw returns
+    ``'A'`` with probability 0.18, ``'C'`` with 0.32, and so on.
+
+    Args:
+        dic: A dictionary mapping hashable items to their relative
+            probabilities.  Values should be non-negative.
+        n: The number of items to draw.
+
+    Returns:
+        A list of ``n`` keys from ``dic``, each sampled with probability
+        proportional to its value.
+    """
     # {'A': .18, 'C': .32, 'G': .32, 'T': .18}
     # will generate A with probability .18 and so on
     items = dic.items()
@@ -78,26 +189,65 @@ def pick_many(dic, n):
     return choices
 
 def gaussian(x,mu,sigma):
-    """
-    Evaluate N(mu,sigma) at x.
-    where N(mu,sigma) is a gaussian of mean mu and stdev sigma
-    """
+    """Evaluate the Gaussian (normal) PDF N(mu, sigma) at ``x``.
 
+    Computes::
+
+        f(x) = (1 / sqrt(2 * pi * sigma)) * exp(-((x - mu)^2) / (2 * sigma^2))
+
+    Note:
+        The normalisation constant uses ``sqrt(2*pi*sigma)`` rather than
+        the more common ``sigma*sqrt(2*pi)``.  For the function to
+        integrate to 1 the usual convention is ``sigma`` (standard
+        deviation) in the denominator as ``sigma * sqrt(2*pi)``.
+
+    Args:
+        x: The point at which to evaluate the PDF.
+        mu: The mean of the Gaussian.
+        sigma: The standard deviation of the Gaussian.
+
+    Returns:
+        The PDF value at ``x`` as a float.
+    """
     return ( (1.0/math.sqrt(2*math.pi*sigma)) * (math.e**(-((x-mu)**2)/(2*sigma**2))))
 
 def make_gaussian(mu,sigma):
-    """
-    usage:
-    N2_3 = make_gaussian(2,3)
-    N2_3(4) -> gaussianN(2,3) evaluated at 4
+    """Create a Gaussian PDF function with fixed mean and standard deviation.
+
+    Returns a callable that evaluates the Gaussian PDF at any point
+    ``x``, with ``mu`` and ``sigma`` captured by closure.
+
+    Example::
+
+        N2_3 = make_gaussian(2, 3)
+        N2_3(4)  # -> gaussian(4, mu=2, sigma=3)
+
+    Args:
+        mu: The mean of the Gaussian.
+        sigma: The standard deviation of the Gaussian.
+
+    Returns:
+        A function ``f(x)`` that evaluates the Gaussian N(mu, sigma) at
+        ``x``.
     """
     return lambda x,mu=mu,sigma=sigma: ( (1.0/math.sqrt(2*math.pi*sigma)) * (math.e**(-((x-mu)**2)/(2*sigma**2))))
 
 def make_adder(n):
-    """
-    usage:
-    Add2=make_adder(2)
-    Add2(3) -> 5
+    """Create an adder function that adds a fixed value ``n`` to its argument.
+
+    Returns a callable that adds ``n`` (captured by closure) to any
+    input ``x``.
+
+    Example::
+
+        Add2 = make_adder(2)
+        Add2(3)  # -> 5
+
+    Args:
+        n: The fixed value to add.
+
+    Returns:
+        A function ``f(x)`` that returns ``x + n``.
     """
     return lambda x,n=n: x+n
 
@@ -107,6 +257,17 @@ def make_adder(n):
 loge_2 = math.log(2)
 
 def avg(l,precise=0):
+    """Compute the arithmetic mean of a list of numbers.
+
+    Args:
+        l: A list of numeric values.
+        precise: If non-zero, divide by ``float(len(l))`` for a
+            floating-point result.  If 0 (default), divide by
+            ``len(l)`` using integer or floor division.
+
+    Returns:
+        The mean of ``l`` as a number, or 0 if ``l`` is empty.
+    """
     if not l: return 0
     if precise:
         return reduce(operator.add,l,0)/float(len(l))
@@ -114,19 +275,40 @@ def avg(l,precise=0):
         return reduce(operator.add,l,0)/len(l)
 
 def movavg(s, n):
-    ''' returns an n period moving average for the time series s
+    """Compute an n-period moving average for a time series.
 
-        s is a list ordered from oldest (index 0) to most recent (index -1)
-        n is an integer
+    Uses cumulative sums for an O(len(s)) implementation::
 
-        returns a numeric array of the moving average
-    '''
+        MA[i] = mean(s[i-n+1 : i+1])
+
+    The result has length ``len(s) - n + 1``.
+
+    Args:
+        s: A list or array of numeric values ordered from oldest
+            (index 0) to most recent (index -1).
+        n: The window size (number of periods) for the moving average.
+
+    Returns:
+        A NumPy array of the moving average values.  The array has
+        ``len(s) - n + 1`` elements.
+    """
     s = np.array(s)
     c = np.cumsum(s)
     return (c[n-1:] - c[:-n+1]) / float(n)
 
 
 def median(l):
+    """Compute the median of a list of numbers.
+
+    Sorts ``l`` and returns the middle value for odd-length lists or the
+    average of the two middle values for even-length lists.
+
+    Args:
+        l: A list of numeric values.
+
+    Returns:
+        The median value, or ``None`` if ``l`` is empty.
+    """
     if not l: return None
     l = sorted(l)
     if len(l)%2: return sorted(l)[len(l)//2]
